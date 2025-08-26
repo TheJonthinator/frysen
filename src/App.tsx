@@ -83,6 +83,7 @@ export default function App() {
     toggleShoppingItem,
     removeShoppingItem,
     editShoppingItem,
+    clearCompletedShoppingItems,
     checkForUpdates,
     getCurrentVersion,
     getLastCheckTime,
@@ -508,6 +509,7 @@ export default function App() {
             onToggleItem={toggleShoppingItem}
             onDeleteItem={removeShoppingItem}
             onEditItem={editShoppingItem}
+            onClearCompleted={clearCompletedShoppingItems}
             getSuggestions={getSuggestions}
           />
         ) : (

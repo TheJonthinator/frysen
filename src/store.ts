@@ -40,6 +40,7 @@ type State = {
   toggleShoppingItem: (id: string) => Promise<void>;
   removeShoppingItem: (id: string) => Promise<void>;
   editShoppingItem: (id: string, name: string) => Promise<void>;
+  clearCompletedShoppingItems: () => Promise<void>;
   checkForUpdates: () => Promise<void>;
   getCurrentVersion: () => string;
   getLastCheckTime: () => Date | null;
@@ -251,6 +252,11 @@ export const useStore = create<State>((set, get) => ({
     const newList = get().shoppingList.map(item =>
       item.id === id ? { ...item, name } : item
     );
+    set({ shoppingList: newList });
+    await localforage.setItem(SHOPPING_LIST_KEY, newList);
+  },
+  clearCompletedShoppingItems: async () => {
+    const newList = get().shoppingList.filter(item => !item.completed);
     set({ shoppingList: newList });
     await localforage.setItem(SHOPPING_LIST_KEY, newList);
   },

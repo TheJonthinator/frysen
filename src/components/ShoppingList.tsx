@@ -19,6 +19,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
+import ClearAllIcon from "@mui/icons-material/ClearAll";
 import type { ShoppingItem } from "../types";
 
 interface ShoppingListProps {
@@ -27,6 +28,7 @@ interface ShoppingListProps {
   onToggleItem: (id: string) => void;
   onDeleteItem: (id: string) => void;
   onEditItem: (id: string, name: string) => void;
+  onClearCompleted: () => void;
   getSuggestions: (query: string) => string[];
 }
 
@@ -36,6 +38,7 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({
   onToggleItem,
   onDeleteItem,
   onEditItem,
+  onClearCompleted,
   getSuggestions,
 }) => {
   const [newItemName, setNewItemName] = useState("");
@@ -190,9 +193,26 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({
       {completedItems.length > 0 && (
         <Card>
           <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Klar ({completedItems.length})
-            </Typography>
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              sx={{ mb: 1 }}
+            >
+              <Typography variant="h6">
+                Klar ({completedItems.length})
+              </Typography>
+              <Button
+                size="small"
+                variant="outlined"
+                color="secondary"
+                startIcon={<ClearAllIcon />}
+                onClick={onClearCompleted}
+                sx={{ fontSize: "0.75rem" }}
+              >
+                Rensa klara
+              </Button>
+            </Stack>
             <List dense>
               {completedItems.map((item) => (
                 <ListItem key={item.id} sx={{ px: 0 }}>
