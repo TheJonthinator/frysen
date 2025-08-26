@@ -20,10 +20,10 @@ class UpdateService {
       console.log('Checking for updates...');
       
       // Check if we should skip this check (avoid too frequent API calls)
-      if (this.lastCheckTime && Date.now() - this.lastCheckTime.getTime() < 5 * 60 * 1000) {
-        // Less than 5 minutes since last check
-        return { status: 'up_to_date' };
-      }
+                   if (this.lastCheckTime && Date.now() - this.lastCheckTime.getTime() < 60 * 60 * 1000) {
+               // Less than 1 hour since last check (increased to reduce API calls)
+               return { status: 'up_to_date' };
+             }
 
       // Skip update check if no internet connection
       if (!navigator.onLine) {
@@ -33,14 +33,20 @@ class UpdateService {
 
       const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
       
-      if (!response.ok) {
-        if (response.status === 404) {
-          // No releases found - this is normal for new repositories
-          console.log('No releases found - repository is new or has no releases yet');
-          return { status: 'up_to_date' };
-        }
-        throw new Error(`GitHub API error: ${response.status}`);
-      }
+                   if (!response.ok) {
+               if (response.status === 404) {
+                 // No releases found - this is normal for new repositories
+                 console.log('No releases found - repository is new or has no releases yet');
+                 return { status: 'up_to_date' };
+               }
+               if (response.status === 403) {
+                 // Rate limited or forbidden - treat as up to date to avoid spam
+                 console.log('GitHub API rate limited or forbidden - treating as up to date');
+                 this.lastCheckTime = new Date();
+                 return { status: 'up_to_date' };
+               }
+               throw new Error(`GitHub API error: ${response.status}`);
+             }
 
       const release: GitHubRelease = await response.json();
       
@@ -103,7 +109,7 @@ class UpdateService {
     return latestParts[0] > currentParts[0] || latestParts[1] > currentParts[1];
   }
 
-  startPeriodicChecks(intervalMinutes: number = 30): void {
+           startPeriodicChecks(intervalMinutes: number = 120): void {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
     }

@@ -90,9 +90,9 @@ export default function App() {
 
   useEffect(() => {
     load();
-    // Check for updates on app launch
-    checkForUpdates();
-  }, [load, checkForUpdates]);
+    // Don't auto-check for updates on launch to avoid rate limiting
+    // Users can manually check via the update indicator or settings
+  }, [load]);
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
