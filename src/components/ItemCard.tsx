@@ -18,6 +18,8 @@ import { sv } from "date-fns/locale";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
+import AddIcon from "@mui/icons-material/Add";
+import RemoveIcon from "@mui/icons-material/Remove";
 import type { ItemCardProps } from "../types";
 
 const formatDate = (date: Date) => {
@@ -28,6 +30,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   item,
   onEdit,
   onDelete,
+  onIncreaseQuantity,
+  onDecreaseQuantity,
   isSelected = false,
   onSelect,
   isDragging = false,
@@ -91,7 +95,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             color="primary"
             sx={{ fontSize: "0.875rem" }}
           />
-          <Box>
+          <Box flex={1}>
             <Typography
               variant="body2"
               fontWeight="medium"
@@ -107,6 +111,44 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               {displayDate}
             </Typography>
           </Box>
+
+          {/* Quantity Controls */}
+          <Stack direction="row" alignItems="center" spacing={0.5}>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDecreaseQuantity();
+              }}
+              disabled={item.quantity <= 1}
+              sx={{ p: 0.25, minWidth: 24, height: 24 }}
+            >
+              <RemoveIcon fontSize="small" sx={{ fontSize: "0.75rem" }} />
+            </IconButton>
+
+            <Typography
+              variant="body2"
+              sx={{
+                fontSize: "0.875rem",
+                fontWeight: "bold",
+                minWidth: 20,
+                textAlign: "center",
+              }}
+            >
+              {item.quantity}
+            </Typography>
+
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                onIncreaseQuantity();
+              }}
+              sx={{ p: 0.25, minWidth: 24, height: 24 }}
+            >
+              <AddIcon fontSize="small" sx={{ fontSize: "0.75rem" }} />
+            </IconButton>
+          </Stack>
         </Box>
 
         <IconButton

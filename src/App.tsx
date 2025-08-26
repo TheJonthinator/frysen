@@ -71,6 +71,8 @@ export default function App() {
     addItem,
     editItem,
     removeItem,
+    increaseQuantity,
+    decreaseQuantity,
     replaceAll,
     toggleDateDisplay,
     moveItem,
@@ -449,6 +451,8 @@ export default function App() {
                     items={drawers[drawerNum] || []}
                     onEdit={editItem}
                     onDelete={removeItem}
+                    onIncreaseQuantity={increaseQuantity}
+                    onDecreaseQuantity={decreaseQuantity}
                     selectedItems={selectedItems}
                     onItemSelect={handleItemSelect}
                     dateDisplayMode={dateDisplayMode}

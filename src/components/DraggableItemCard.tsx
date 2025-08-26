@@ -8,6 +8,8 @@ export const DraggableItemCard: React.FC<DraggableItemCardProps> = ({
   item,
   onEdit,
   onDelete,
+  onIncreaseQuantity,
+  onDecreaseQuantity,
   isSelected,
   onSelect,
   dateDisplayMode,
@@ -34,6 +36,8 @@ export const DraggableItemCard: React.FC<DraggableItemCardProps> = ({
         item={item}
         onEdit={onEdit}
         onDelete={onDelete}
+        onIncreaseQuantity={onIncreaseQuantity}
+        onDecreaseQuantity={onDecreaseQuantity}
         isSelected={isSelected}
         onSelect={onSelect}
         dateDisplayMode={dateDisplayMode}

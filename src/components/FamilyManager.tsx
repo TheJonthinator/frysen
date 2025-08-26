@@ -58,6 +58,18 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
     setError(null);
 
     try {
+      // Check if user is signed in, if not, sign them in first
+      let user = googleDriveService.getCurrentUser();
+      if (!user) {
+        console.log("No user logged in, attempting to sign in...");
+        user = await googleDriveService.signIn();
+        if (!user) {
+          setError("Du måste logga in med Google för att skapa en familj");
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const result = await googleDriveService.createFamily(familyName.trim());
       if (result.success && result.family) {
         onFamilyChange(result.family);
@@ -90,6 +102,20 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
     setError(null);
 
     try {
+      // Check if user is signed in, if not, sign them in first
+      let user = googleDriveService.getCurrentUser();
+      if (!user) {
+        console.log("No user logged in, attempting to sign in...");
+        user = await googleDriveService.signIn();
+        if (!user) {
+          setError(
+            "Du måste logga in med Google för att ansluta till en familj"
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const family = await googleDriveService.joinFamily(inviteCode.trim());
       if (family) {
         onFamilyChange(family);

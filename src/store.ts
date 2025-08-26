@@ -99,6 +99,7 @@ export const useStore = create<State>((set, get) => ({
       id: generateId(),
       name,
       addedDate: new Date(),
+      quantity: 1,
     };
     s[d] = [...s[d], item];
     set({ drawers: s });
@@ -118,6 +119,22 @@ export const useStore = create<State>((set, get) => ({
     s[d] = s[d].filter((_, i) => i !== idx);
     set({ drawers: s });
     await localforage.setItem(KEY, s);
+  },
+  increaseQuantity: async (d: number, idx: number) => {
+    const s = { ...get().drawers };
+    const item = s[d][idx];
+    s[d][idx] = { ...item, quantity: item.quantity + 1 };
+    set({ drawers: s });
+    await localforage.setItem(KEY, s);
+  },
+  decreaseQuantity: async (d: number, idx: number) => {
+    const s = { ...get().drawers };
+    const item = s[d][idx];
+    if (item.quantity > 1) {
+      s[d][idx] = { ...item, quantity: item.quantity - 1 };
+      set({ drawers: s });
+      await localforage.setItem(KEY, s);
+    }
   },
   moveItem: async (fromDrawer: number, fromIdx: number, toDrawer: number, toIdx?: number) => {
     const s = { ...get().drawers };

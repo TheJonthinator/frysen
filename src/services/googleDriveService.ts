@@ -3,6 +3,7 @@ import type { Family, FamilyRegistry, FamilyMember } from '../types';
 // Google Drive API configuration
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET;
 const SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/userinfo.email',
@@ -13,9 +14,8 @@ const FAMILY_REGISTRY_FILE_NAME = 'frysen-family-registry.json';
 const FAMILY_SYNC_FILE_PREFIX = 'frysen-family-sync-';
 
 const getClientId = () => {
-  // For now, use web client ID for all platforms
-  // Later we can add platform-specific logic
-  return import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID;
+  // Use the web client ID from .env
+  return import.meta.env.VITE_GOOGLE_CLIENT_ID;
 };
 
 interface GoogleUser {
@@ -36,13 +36,13 @@ class GoogleDriveService {
       
       // Initialize the API
       await new Promise((resolve, reject) => {
-        gapi.load('auth2:client', {
+        this.gapi.load('auth2:client', {
           callback: resolve,
           onerror: reject
         });
       });
 
-      await gapi.client.init({
+      await this.gapi.client.init({
         apiKey: API_KEY,
         clientId: getClientId(),
         scope: SCOPES.join(' ')
@@ -82,7 +82,7 @@ class GoogleDriveService {
     }
 
     try {
-      const auth2 = gapi.auth2.getAuthInstance();
+      const auth2 = this.gapi.auth2.getAuthInstance();
       const googleUser = await auth2.signIn();
       
       const profile = googleUser.getBasicProfile();
@@ -103,7 +103,7 @@ class GoogleDriveService {
     if (!this.isInitialized) return;
 
     try {
-      const auth2 = gapi.auth2.getAuthInstance();
+      const auth2 = this.gapi.auth2.getAuthInstance();
       await auth2.signOut();
       this.user = null;
     } catch (error) {
@@ -270,7 +270,7 @@ class GoogleDriveService {
   private async getFamilyRegistry(): Promise<FamilyRegistry> {
     try {
       // Try to find existing registry file
-      const response = await gapi.client.drive.files.list({
+      const response = await this.gapi.client.drive.files.list({
         q: `name='${FAMILY_REGISTRY_FILE_NAME}' and trashed=false`,
         spaces: 'drive'
       });

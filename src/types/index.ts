@@ -2,6 +2,7 @@ export type Item = {
   id: string;
   name: string;
   addedDate: Date;
+  quantity: number;
 };
 
 export type DrawerMap = Record<number, Item[]>;
@@ -16,6 +17,8 @@ export interface ItemCardProps {
   item: Item;
   onEdit: (updates: Partial<Item>) => void;
   onDelete: () => void;
+  onIncreaseQuantity: () => void;
+  onDecreaseQuantity: () => void;
   isSelected?: boolean;
   onSelect?: () => void;
   isDragging?: boolean;
@@ -27,6 +30,8 @@ export interface DraggableItemCardProps {
   item: Item;
   onEdit: (updates: Partial<Item>) => void;
   onDelete: () => void;
+  onIncreaseQuantity: () => void;
+  onDecreaseQuantity: () => void;
   isSelected?: boolean;
   onSelect?: () => void;
   dateDisplayMode: DateDisplayMode;
@@ -38,6 +43,8 @@ export interface DroppableDrawerProps {
   items: Item[];
   onEdit: (drawer: number, idx: number, updates: Partial<Item>) => void;
   onDelete: (drawer: number, idx: number) => void;
+  onIncreaseQuantity: (drawer: number, idx: number) => void;
+  onDecreaseQuantity: (drawer: number, idx: number) => void;
   selectedItems: Set<string>;
   onItemSelect: (itemId: string) => void;
   dateDisplayMode: DateDisplayMode;
