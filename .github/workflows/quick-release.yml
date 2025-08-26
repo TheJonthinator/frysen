@@ -37,26 +37,55 @@ jobs:
       - name: Read and bump version
         id: version
         run: |
-          # Read current version and trim whitespace
-          CURRENT_VERSION=$(cat version.txt | xargs)
-          echo "Current version: '$CURRENT_VERSION'"
+          echo "=== VERSION PARSING DEBUG ==="
 
-          # Split version into parts using awk for better reliability
-          MAJOR=$(echo "$CURRENT_VERSION" | awk -F. '{print $1}')
-          MINOR=$(echo "$CURRENT_VERSION" | awk -F. '{print $2}')
-          PATCH=$(echo "$CURRENT_VERSION" | awk -F. '{print $3}')
+          # Read current version and show exactly what we got
+          echo "Raw content of version.txt:"
+          cat version.txt | hexdump -C
+          echo ""
 
-          echo "Parsed: MAJOR=$MAJOR, MINOR=$MINOR, PATCH=$PATCH"
+          # Read and trim whitespace
+          CURRENT_VERSION=$(cat version.txt | tr -d '\r\n\t ' | head -1)
+          echo "Trimmed version: '$CURRENT_VERSION'"
+          echo "Length: ${#CURRENT_VERSION}"
+          echo ""
+
+          # Validate version format
+          if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: Invalid version format: '$CURRENT_VERSION'"
+            echo "Expected format: X.Y.Z (e.g., 1.0.0)"
+            exit 1
+          fi
+
+          # Split version using simple bash parameter expansion
+          MAJOR="${CURRENT_VERSION%%.*}"
+          REMAINDER="${CURRENT_VERSION#*.}"
+          MINOR="${REMAINDER%%.*}"
+          PATCH="${REMAINDER#*.}"
+
+          echo "Parsed components:"
+          echo "  MAJOR: '$MAJOR'"
+          echo "  MINOR: '$MINOR'"
+          echo "  PATCH: '$PATCH'"
+          echo ""
+
+          # Validate each component
+          if [[ ! "$MAJOR" =~ ^[0-9]+$ ]] || [[ ! "$MINOR" =~ ^[0-9]+$ ]] || [[ ! "$PATCH" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: Invalid version components"
+            exit 1
+          fi
 
           # Increment patch version
           NEW_PATCH=$((PATCH + 1))
           NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
 
-          echo "New version: $NEW_VERSION"
+          echo "New version: '$NEW_VERSION'"
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
           # Update version file
           echo "$NEW_VERSION" > version.txt
+          echo "Updated version.txt with: '$NEW_VERSION'"
+          echo "=== END VERSION PARSING ==="
 
       - name: Generate release notes
         id: release_notes
