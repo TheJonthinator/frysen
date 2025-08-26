@@ -70,17 +70,27 @@ export const useStore = create<State>((set, get) => ({
     isHost: false,
   },
   load: async () => {
-    const [data, dateDisplay, history, shoppingList] = await Promise.all([
+    const [data, dateDisplay, history, shoppingList, family, syncStatus] = await Promise.all([
       localforage.getItem<DrawerMap>(KEY),
       localforage.getItem<DateDisplayMode>(DATE_DISPLAY_KEY),
       localforage.getItem<string[]>(ITEM_HISTORY_KEY),
-      localforage.getItem<ShoppingItem[]>(SHOPPING_LIST_KEY)
+      localforage.getItem<ShoppingItem[]>(SHOPPING_LIST_KEY),
+      localforage.getItem<Family>(FAMILY_KEY),
+      localforage.getItem<SyncStatus>(SYNC_STATUS_KEY)
     ]);
     set({ 
       drawers: data || empty(),
       dateDisplayMode: dateDisplay || 'date',
       itemHistory: history || [],
-      shoppingList: shoppingList || []
+      shoppingList: shoppingList || [],
+      currentFamily: family || null,
+      syncStatus: syncStatus || {
+        isConnected: false,
+        familyId: null,
+        lastSync: null,
+        syncError: null,
+        isHost: false,
+      }
     });
   },
   addItem: async (d: number, name: string) => {

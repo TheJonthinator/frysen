@@ -52,6 +52,7 @@ import {
   DroppableDrawer,
   ShoppingList,
   UpdateIndicator,
+  FamilyManager,
 } from "./components";
 import type { Item, TabType } from "./types";
 import { DRAWER_COUNT, KOKSBANKEN_DRAWER } from "./types";
@@ -64,6 +65,8 @@ export default function App() {
     shoppingList,
     updateStatus,
     updateInfo,
+    currentFamily,
+    syncStatus,
     load,
     addItem,
     editItem,
@@ -80,6 +83,9 @@ export default function App() {
     checkForUpdates,
     getCurrentVersion,
     getLastCheckTime,
+    setCurrentFamily,
+    signInWithGoogle,
+    signOutFromGoogle,
   } = useStore();
 
   useEffect(() => {
@@ -363,6 +369,7 @@ export default function App() {
         >
           <Tab label="Lådor" value="inventory" />
           <Tab label="Inköpslista" value="shopping" />
+          <Tab label="Familj" value="family" />
         </Tabs>
       </AppBar>
 
@@ -488,7 +495,7 @@ export default function App() {
               Tips: Lägg till varor i header, sedan dra dem till rätt låda.
             </Typography>
           </>
-        ) : (
+        ) : activeTab === "shopping" ? (
           <ShoppingList
             items={shoppingList}
             onAddItem={addShoppingItem}
@@ -496,6 +503,12 @@ export default function App() {
             onDeleteItem={removeShoppingItem}
             onEditItem={editShoppingItem}
             getSuggestions={getSuggestions}
+          />
+        ) : (
+          <FamilyManager
+            currentFamily={currentFamily}
+            onFamilyChange={setCurrentFamily}
+            onSignOut={signOutFromGoogle}
           />
         )}
       </Container>

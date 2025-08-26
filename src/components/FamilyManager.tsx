@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Typography,
@@ -16,16 +16,16 @@ import {
   IconButton,
   Alert,
   CircularProgress,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Group as GroupIcon,
   Add as AddIcon,
   Link as LinkIcon,
   Person as PersonIcon,
   ExitToApp as ExitToAppIcon,
-} from '@mui/icons-material';
-import { googleDriveService } from '../services/googleDriveService';
-import type { Family, FamilyMember } from '../types';
+} from "@mui/icons-material";
+import { googleDriveService } from "../services/googleDriveService";
+import type { Family, FamilyMember } from "../types";
 
 interface FamilyManagerProps {
   currentFamily: Family | null;
@@ -40,8 +40,8 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
 }) => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
-  const [familyName, setFamilyName] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  const [familyName, setFamilyName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
 
   const handleCreateFamily = async () => {
     if (!familyName.trim()) {
-      setError('Ange ett familjenamn');
+      setError("Ange ett familjenamn");
       return;
     }
 
@@ -63,12 +63,12 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
         onFamilyChange(family);
         setSuccess(`Familj "${family.name}" skapad!`);
         setIsCreateDialogOpen(false);
-        setFamilyName('');
+        setFamilyName("");
       } else {
-        setError('Kunde inte skapa familj');
+        setError("Kunde inte skapa familj");
       }
     } catch (err) {
-      setError('Ett fel uppstod när familjen skulle skapas');
+      setError("Ett fel uppstod när familjen skulle skapas");
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +76,7 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
 
   const handleJoinFamily = async () => {
     if (!inviteCode.trim()) {
-      setError('Ange en inbjudningskod');
+      setError("Ange en inbjudningskod");
       return;
     }
 
@@ -89,35 +89,37 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
         onFamilyChange(family);
         setSuccess(`Du har anslutit till familj "${family.name}"!`);
         setIsJoinDialogOpen(false);
-        setInviteCode('');
+        setInviteCode("");
       } else {
-        setError('Kunde inte ansluta till familj');
+        setError("Kunde inte ansluta till familj");
       }
     } catch (err) {
-      setError('Ogiltig inbjudningskod eller familj hittades inte');
+      setError("Ogiltig inbjudningskod eller familj hittades inte");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleLeaveFamily = () => {
-    if (confirm('Är du säker på att du vill lämna familjen?')) {
+    if (confirm("Är du säker på att du vill lämna familjen?")) {
       onFamilyChange(null);
-      setSuccess('Du har lämnat familjen');
+      setSuccess("Du har lämnat familjen");
     }
   };
 
   const copyInviteLink = () => {
     if (currentFamily) {
-      const inviteLink = googleDriveService.generateInviteLink(currentFamily.id);
+      const inviteLink = googleDriveService.generateInviteLink(
+        currentFamily.id
+      );
       navigator.clipboard.writeText(inviteLink);
-      setSuccess('Inbjudningslänk kopierad till urklipp!');
+      setSuccess("Inbjudningslänk kopierad till urklipp!");
     }
   };
 
   const getCurrentUserRole = (): FamilyMember | undefined => {
     if (!currentFamily || !currentUser) return undefined;
-    return currentFamily.members.find(m => m.email === currentUser.email);
+    return currentFamily.members.find((m) => m.email === currentUser.email);
   };
 
   const currentUserRole = getCurrentUserRole();
@@ -137,7 +139,10 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
                   {currentFamily.name}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Skapad {new Date(currentFamily.createdAt).toLocaleDateString('sv-SE')}
+                  Skapad{" "}
+                  {new Date(currentFamily.createdAt).toLocaleDateString(
+                    "sv-SE"
+                  )}
                 </Typography>
               </Box>
 
@@ -155,8 +160,8 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
                         </Avatar>
                       }
                       label={member.name}
-                      color={member.isHost ? 'primary' : 'default'}
-                      variant={member.isHost ? 'filled' : 'outlined'}
+                      color={member.isHost ? "primary" : "default"}
+                      variant={member.isHost ? "filled" : "outlined"}
                       size="small"
                     />
                   ))}
@@ -185,7 +190,8 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
 
               {currentUserRole?.isHost && (
                 <Alert severity="info">
-                  Du är värd för denna familj. Du kan hantera medlemmar och inställningar.
+                  Du är värd för denna familj. Du kan hantera medlemmar och
+                  inställningar.
                 </Alert>
               )}
             </Stack>
@@ -195,14 +201,13 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
         <Card>
           <CardContent>
             <Stack spacing={2} alignItems="center" textAlign="center">
-              <GroupIcon sx={{ fontSize: 48, color: 'text.secondary' }} />
-              <Typography variant="h6">
-                Ingen familj ansluten
-              </Typography>
+              <GroupIcon sx={{ fontSize: 48, color: "text.secondary" }} />
+              <Typography variant="h6">Ingen familj ansluten</Typography>
               <Typography variant="body2" color="text.secondary">
-                Skapa en ny familj eller anslut till en befintlig för att synkronisera data.
+                Skapa en ny familj eller anslut till en befintlig för att
+                synkronisera data.
               </Typography>
-              
+
               <Stack direction="row" spacing={2}>
                 <Button
                   variant="contained"
@@ -225,7 +230,10 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
       )}
 
       {/* Create Family Dialog */}
-      <Dialog open={isCreateDialogOpen} onClose={() => setIsCreateDialogOpen(false)}>
+      <Dialog
+        open={isCreateDialogOpen}
+        onClose={() => setIsCreateDialogOpen(false)}
+      >
         <DialogTitle>Skapa ny familj</DialogTitle>
         <DialogContent>
           <TextField
@@ -236,7 +244,7 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
             variant="outlined"
             value={familyName}
             onChange={(e) => setFamilyName(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleCreateFamily()}
+            onKeyPress={(e) => e.key === "Enter" && handleCreateFamily()}
           />
         </DialogContent>
         <DialogActions>
@@ -253,7 +261,10 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
       </Dialog>
 
       {/* Join Family Dialog */}
-      <Dialog open={isJoinDialogOpen} onClose={() => setIsJoinDialogOpen(false)}>
+      <Dialog
+        open={isJoinDialogOpen}
+        onClose={() => setIsJoinDialogOpen(false)}
+      >
         <DialogTitle>Anslut till familj</DialogTitle>
         <DialogContent>
           <TextField
@@ -264,7 +275,7 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
             variant="outlined"
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleJoinFamily()}
+            onKeyPress={(e) => e.key === "Enter" && handleJoinFamily()}
             placeholder="Ange inbjudningskod från familjens värd"
           />
         </DialogContent>
@@ -287,12 +298,16 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
           {error}
         </Alert>
       )}
-      
+
       {success && (
-        <Alert severity="success" sx={{ mt: 2 }} onClose={() => setSuccess(null)}>
+        <Alert
+          severity="success"
+          sx={{ mt: 2 }}
+          onClose={() => setSuccess(null)}
+        >
           {success}
         </Alert>
       )}
     </Box>
   );
-}; 
+};

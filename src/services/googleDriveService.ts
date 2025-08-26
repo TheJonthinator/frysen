@@ -1,8 +1,8 @@
 import type { Family, FamilyRegistry, FamilyMember } from '../types';
 
 // Google Drive API configuration
-const API_KEY = 'YOUR_GOOGLE_API_KEY'; // You'll need to get this from Google Cloud Console
-const CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID';
+const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/userinfo.email',
@@ -11,6 +11,12 @@ const SCOPES = [
 
 const FAMILY_REGISTRY_FILE_NAME = 'frysen-family-registry.json';
 const FAMILY_SYNC_FILE_PREFIX = 'frysen-family-sync-';
+
+const getClientId = () => {
+  // For now, use web client ID for all platforms
+  // Later we can add platform-specific logic
+  return import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID;
+};
 
 interface GoogleUser {
   email: string;
@@ -38,7 +44,7 @@ class GoogleDriveService {
 
       await gapi.client.init({
         apiKey: API_KEY,
-        clientId: CLIENT_ID,
+        clientId: getClientId(),
         scope: SCOPES.join(' ')
       });
 
