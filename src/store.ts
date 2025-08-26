@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import localforage from "localforage";
-import type { Item, DrawerMap, DateDisplayMode, ShoppingItem } from "./types";
+import type { Item, DrawerMap, DateDisplayMode, ShoppingItem, UpdateStatus, UpdateInfo } from "./types";
 import { DRAWER_COUNT } from "./types";
+import { updateService } from "./services/updateService";
 
 const KEY = "frysen_v5";
 
@@ -15,6 +16,8 @@ type State = {
   dateDisplayMode: DateDisplayMode;
   itemHistory: string[];
   shoppingList: ShoppingItem[];
+  updateStatus: UpdateStatus;
+  updateInfo: UpdateInfo | null;
   load: () => Promise<void>;
   addItem: (drawer: number, name: string) => Promise<void>;
   editItem: (drawer: number, idx: number, updates: Partial<Item>) => Promise<void>;
@@ -29,6 +32,9 @@ type State = {
   toggleShoppingItem: (id: string) => Promise<void>;
   removeShoppingItem: (id: string) => Promise<void>;
   editShoppingItem: (id: string, name: string) => Promise<void>;
+  checkForUpdates: () => Promise<void>;
+  getCurrentVersion: () => string;
+  getLastCheckTime: () => Date | null;
 };
 
 const empty = (): DrawerMap => {
@@ -44,6 +50,8 @@ export const useStore = create<State>((set, get) => ({
   dateDisplayMode: 'date',
   itemHistory: [],
   shoppingList: [],
+  updateStatus: 'up_to_date',
+  updateInfo: null,
   load: async () => {
     const [data, dateDisplay, history, shoppingList] = await Promise.all([
       localforage.getItem<DrawerMap>(KEY),
@@ -174,4 +182,14 @@ export const useStore = create<State>((set, get) => ({
     set({ shoppingList: newList });
     await localforage.setItem(SHOPPING_LIST_KEY, newList);
   },
+  checkForUpdates: async () => {
+    set({ updateStatus: 'checking' });
+    const result = await updateService.checkForUpdates();
+    set({ 
+      updateStatus: result.status,
+      updateInfo: result.updateInfo || null
+    });
+  },
+  getCurrentVersion: () => updateService.getCurrentVersion(),
+  getLastCheckTime: () => updateService.getLastCheckTime(),
 }));

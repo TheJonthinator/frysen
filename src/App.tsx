@@ -35,6 +35,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import UpdateIcon from "@mui/icons-material/Update";
 
 import {
   DndContext,
@@ -46,7 +47,12 @@ import {
 } from "@dnd-kit/core";
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import { useStore } from "./store";
-import { ItemCard, DroppableDrawer, ShoppingList } from "./components";
+import {
+  ItemCard,
+  DroppableDrawer,
+  ShoppingList,
+  UpdateIndicator,
+} from "./components";
 import type { Item, TabType } from "./types";
 import { DRAWER_COUNT, KOKSBANKEN_DRAWER } from "./types";
 import { createAppTheme } from "./theme";
@@ -56,6 +62,8 @@ export default function App() {
     drawers,
     dateDisplayMode,
     shoppingList,
+    updateStatus,
+    updateInfo,
     load,
     addItem,
     editItem,
@@ -69,11 +77,16 @@ export default function App() {
     toggleShoppingItem,
     removeShoppingItem,
     editShoppingItem,
+    checkForUpdates,
+    getCurrentVersion,
+    getLastCheckTime,
   } = useStore();
 
   useEffect(() => {
     load();
-  }, [load]);
+    // Check for updates on app launch
+    checkForUpdates();
+  }, [load, checkForUpdates]);
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -321,6 +334,11 @@ export default function App() {
                 {dateDisplayMode === "date" ? "2024-01-15" : "2 veckor"}
               </Button>
             )}
+            <UpdateIndicator
+              status={updateStatus}
+              onCheckUpdate={checkForUpdates}
+              isChecking={updateStatus === "checking"}
+            />
             <IconButton
               onClick={() => setSettingsOpen(true)}
               color="inherit"
@@ -509,6 +527,41 @@ export default function App() {
                 secondary="Läs in data från JSON-fil"
               />
             </ListItem>
+            <Divider sx={{ my: 1 }} />
+            <ListItem onClick={checkForUpdates}>
+              <ListItemIcon>
+                <UpdateIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Kontrollera uppdateringar"
+                secondary={`Nuvarande version: ${getCurrentVersion()}`}
+              />
+            </ListItem>
+            {updateInfo && (
+              <ListItem
+                onClick={() => {
+                  window.open(updateInfo.updateUrl, "_blank");
+                }}
+                sx={{
+                  color: updateInfo.isCritical ? "error.main" : "primary.main",
+                  backgroundColor: updateInfo.isCritical
+                    ? "rgba(244, 67, 54, 0.1)"
+                    : "rgba(25, 118, 210, 0.1)",
+                }}
+              >
+                <ListItemIcon sx={{ color: "inherit" }}>
+                  <UpdateIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary={`Uppdatera till version ${updateInfo.latestVersion}`}
+                  secondary={
+                    updateInfo.isCritical
+                      ? "KRITISK UPPDATERING - Klicka för att ladda ner!"
+                      : "Ny version tillgänglig"
+                  }
+                />
+              </ListItem>
+            )}
             <Divider sx={{ my: 1 }} />
             <ListItem
               onClick={() => {

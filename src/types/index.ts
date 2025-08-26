@@ -61,3 +61,21 @@ export type ShoppingItem = {
 };
 
 export type TabType = 'inventory' | 'shopping';
+
+// Update system types
+export type UpdateStatus = 'checking' | 'up_to_date' | 'update_available' | 'error' | 'critical_update';
+
+export interface UpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  updateUrl: string;
+  releaseNotes: string;
+  isCritical: boolean;
+  lastChecked: Date;
+}
+
+export interface UpdateCheckResult {
+  status: UpdateStatus;
+  updateInfo?: UpdateInfo;
+  error?: string;
+}
