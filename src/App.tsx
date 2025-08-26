@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { StatusBar, Style } from "@capacitor/status-bar";
 import {
   Box,
   Container,
@@ -8,7 +9,6 @@ import {
   CardContent,
   IconButton,
   Button,
-  Divider,
   ThemeProvider,
   createTheme,
   CssBaseline,
@@ -20,10 +20,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
   Tabs,
   Tab,
 } from "@mui/material";
@@ -32,10 +28,9 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 
 import AddIcon from "@mui/icons-material/Add";
 import SettingsIcon from "@mui/icons-material/Settings";
-import FileUploadIcon from "@mui/icons-material/FileUpload";
-import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import UpdateIcon from "@mui/icons-material/Update";
+import SyncIcon from "@mui/icons-material/Sync";
 
 import {
   DndContext,
@@ -57,6 +52,7 @@ import {
 import type { Item, TabType } from "./types";
 import { DRAWER_COUNT, KOKSBANKEN_DRAWER } from "./types";
 import { createAppTheme } from "./theme";
+import { supabaseSync } from "./services/supabaseSync";
 
 export default function App() {
   const {
@@ -83,20 +79,51 @@ export default function App() {
     editShoppingItem,
     clearCompletedShoppingItems,
     checkForUpdates,
-    getCurrentVersion,
   } = useStore();
 
   useEffect(() => {
     load();
     // Don't auto-check for updates on launch to avoid rate limiting
     // Users can manually check via the update indicator or settings
-  }, [load]);
+
+    // Initialize StatusBar
+    const initStatusBar = async () => {
+      try {
+        await StatusBar.setOverlaysWebView({ overlay: false });
+        await StatusBar.setStyle({ style: Style.Dark });
+        await StatusBar.setBackgroundColor({ color: "#1565c0" });
+      } catch (error) {
+        console.log("StatusBar not available (web environment)");
+      }
+    };
+
+    initStatusBar();
+
+    // Subscribe to sync events globally
+    const unsubscribe = supabaseSync.subscribe((data) => {
+      console.log(
+        "📱 [APP] Received sync notification:",
+        data ? "with data" : "without data"
+      );
+      if (data) {
+        console.log("📱 [APP] Processing sync data...");
+        handleRealTimeUpdate(data);
+      }
+    });
+
+    console.log("🌐 App component mounted, observer subscription set up");
+
+    return () => {
+      unsubscribe();
+    };
+  }, []); // Only run once on mount
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [activeItem, setActiveItem] = useState<Item | null>(null);
   const [newItemName, setNewItemName] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("inventory");
 
   const options = useMemo(
@@ -210,36 +237,6 @@ export default function App() {
     await moveItem(sourceDrawer, sourceIndex, targetDrawer);
   };
 
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(drawers, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "frysen.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const importData = () => {
-    const inp = document.createElement("input");
-    inp.type = "file";
-    inp.accept = "application/json";
-    inp.onchange = async () => {
-      const f = inp.files?.[0];
-      if (!f) return;
-      try {
-        const data = JSON.parse(await f.text());
-        if (!options.every((d) => Array.isArray(data[d]))) throw new Error();
-        await replaceAll(data);
-      } catch {
-        alert("Ogiltig fil.");
-      }
-    };
-    inp.click();
-  };
-
   const resetAll = () => {
     if (confirm("Nollställa alla lådor?")) {
       const fresh: any = {};
@@ -248,10 +245,93 @@ export default function App() {
     }
   };
 
+  const handleRealTimeUpdate = async (data: any) => {
+    console.log("📱 [APP] Processing real-time update with data:", {
+      hasDrawers: !!data.drawers,
+      hasShoppingList: !!data.shoppingList,
+      drawerCount: Object.keys(data.drawers || {}).length,
+      shoppingListCount: (data.shoppingList || []).length,
+    });
+
+    // Skip if this update came from the same device (to avoid feedback loops)
+    const currentDeviceId = localStorage.getItem("frysen_device_id");
+    if (data.device_id && data.device_id === currentDeviceId) {
+      console.log("📱 [APP] Skipping update from same device:", data.device_id);
+      return;
+    }
+
+    try {
+      // Convert dates back to Date objects
+      const processedData = {
+        ...data,
+        drawers: Object.fromEntries(
+          Object.entries(data.drawers || {}).map(([key, items]) => [
+            key,
+            (items as any[]).map((item: any) => ({
+              ...item,
+              addedDate: new Date(item.addedDate),
+            })),
+          ])
+        ),
+        shoppingList: (data.shoppingList || []).map((item: any) => ({
+          ...item,
+          addedDate: new Date(item.addedDate),
+        })),
+      };
+
+      console.log("📱 [APP] Applying sync snapshot to store...");
+      await useStore.getState().applySyncSnapshot({
+        drawers: processedData.drawers,
+        shoppingList:
+          processedData.shoppingList ?? useStore.getState().shoppingList,
+      });
+
+      // Also update shopping list if it exists in the data
+      if (processedData.shoppingList) {
+        const { shoppingList } = useStore.getState();
+
+        // More robust comparison - check if arrays have different lengths or different items
+        const currentLength = shoppingList.length;
+        const newLength = processedData.shoppingList.length;
+        const hasDifferentLength = currentLength !== newLength;
+
+        // Check if any items are different (comparing by id and name)
+        const hasDifferentItems =
+          hasDifferentLength ||
+          processedData.shoppingList.some((newItem: any, index: number) => {
+            const currentItem = shoppingList[index];
+            return (
+              !currentItem ||
+              currentItem.id !== newItem.id ||
+              currentItem.name !== newItem.name ||
+              currentItem.completed !== newItem.completed
+            );
+          });
+
+        if (hasDifferentItems) {
+          console.log("📱 [APP] Shopping list changed, updating...");
+          useStore.setState({ shoppingList: processedData.shoppingList });
+        } else {
+          console.log("📱 [APP] Shopping list unchanged, skipping update");
+        }
+      }
+
+      console.log("✅ [APP] Real-time update processed successfully");
+    } catch (error) {
+      console.error("App failed to process real-time update:", error);
+    }
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AppBar position="static" elevation={0}>
+      <AppBar
+        position="static"
+        elevation={0}
+        sx={{
+          paddingTop: "24px", // Cheeky status bar padding 😄
+        }}
+      >
         <Toolbar sx={{ flexWrap: "wrap", gap: 1 }}>
           <Typography
             variant="h6"
@@ -386,7 +466,6 @@ export default function App() {
         >
           <Tab label="Lådor" value="inventory" />
           <Tab label="Inköpslista" value="shopping" />
-          <Tab label="Synkronisering" value="family" />
         </Tabs>
       </AppBar>
 
@@ -518,7 +597,7 @@ export default function App() {
               Tips: Lägg till varor i header, sedan dra dem till rätt låda.
             </Typography>
           </>
-        ) : activeTab === "shopping" ? (
+        ) : (
           <ShoppingList
             items={shoppingList}
             onAddItem={addShoppingItem}
@@ -528,8 +607,6 @@ export default function App() {
             onClearCompleted={clearCompletedShoppingItems}
             getSuggestions={getSuggestions}
           />
-        ) : (
-          <SupabaseManager />
         )}
       </Container>
 
@@ -541,62 +618,54 @@ export default function App() {
       >
         <DialogTitle>Inställningar</DialogTitle>
         <DialogContent>
-          <List>
-            <ListItem onClick={exportData}>
-              <ListItemIcon>
-                <FileDownloadIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Exportera data"
-                secondary="Ladda ner alla lådor som JSON-fil"
-              />
-            </ListItem>
-            <ListItem onClick={importData}>
-              <ListItemIcon>
-                <FileUploadIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Importera data"
-                secondary="Läs in data från JSON-fil"
-              />
-            </ListItem>
-            <Divider sx={{ my: 1 }} />
-            <ListItem onClick={checkForUpdates}>
-              <ListItemIcon>
-                <UpdateIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Kontrollera uppdateringar"
-                secondary={`Nuvarande version: ${getCurrentVersion()}`}
-              />
-            </ListItem>
+          <Stack spacing={2} sx={{ py: 1 }}>
+            <Button
+              variant="outlined"
+              startIcon={<SyncIcon />}
+              onClick={() => {
+                setSettingsOpen(false);
+                setSyncOpen(true);
+              }}
+              fullWidth
+            >
+              Synkronisering
+            </Button>
+
+            <Button
+              variant="outlined"
+              startIcon={<UpdateIcon />}
+              onClick={checkForUpdates}
+              fullWidth
+            >
+              Kontrollera uppdateringar
+            </Button>
+
             {updateInfo && (
-              <ListItem
+              <Button
+                variant="contained"
+                startIcon={<UpdateIcon />}
                 onClick={() => {
                   window.open(updateInfo.updateUrl, "_blank");
                 }}
+                fullWidth
                 sx={{
-                  color: updateInfo.isCritical ? "error.main" : "primary.main",
                   backgroundColor: updateInfo.isCritical
-                    ? "rgba(244, 67, 54, 0.1)"
-                    : "rgba(25, 118, 210, 0.1)",
+                    ? "error.main"
+                    : "primary.main",
+                  "&:hover": {
+                    backgroundColor: updateInfo.isCritical
+                      ? "error.dark"
+                      : "primary.dark",
+                  },
                 }}
               >
-                <ListItemIcon sx={{ color: "inherit" }}>
-                  <UpdateIcon />
-                </ListItemIcon>
-                <ListItemText
-                  primary={`Uppdatera till version ${updateInfo.latestVersion}`}
-                  secondary={
-                    updateInfo.isCritical
-                      ? "KRITISK UPPDATERING - Klicka för att ladda ner!"
-                      : "Ny version tillgänglig"
-                  }
-                />
-              </ListItem>
+                Uppdatera till version {updateInfo.latestVersion}
+              </Button>
             )}
-            <Divider sx={{ my: 1 }} />
-            <ListItem
+
+            <Button
+              variant="outlined"
+              startIcon={<RestartAltIcon />}
               onClick={() => {
                 if (
                   confirm(
@@ -607,20 +676,30 @@ export default function App() {
                   setSettingsOpen(false);
                 }
               }}
-              sx={{ color: "warning.main" }}
+              fullWidth
+              color="warning"
             >
-              <ListItemIcon sx={{ color: "warning.main" }}>
-                <RestartAltIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Nollställ alla lådor"
-                secondary="Ta bort alla varor från alla lådor"
-              />
-            </ListItem>
-          </List>
+              Nollställ alla lådor
+            </Button>
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSettingsOpen(false)}>Stäng</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={syncOpen}
+        onClose={() => setSyncOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Synkronisering</DialogTitle>
+        <DialogContent>
+          <SupabaseManager />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSyncOpen(false)}>Stäng</Button>
         </DialogActions>
       </Dialog>
     </ThemeProvider>

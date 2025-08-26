@@ -70,7 +70,7 @@ export type ShoppingItem = {
   completed: boolean;
 };
 
-export type TabType = 'inventory' | 'shopping' | 'family';
+export type TabType = 'inventory' | 'shopping';
 
 // Update system types
 export type UpdateStatus = 'checking' | 'up_to_date' | 'update_available' | 'error' | 'critical_update';

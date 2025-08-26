@@ -10,6 +10,7 @@ import {
   Box,
   Chip,
   Divider,
+  IconButton,
 } from "@mui/material";
 import {
   CloudSync as SyncIcon,
@@ -17,9 +18,11 @@ import {
   Group as GroupIcon,
   Add as AddIcon,
   Login as LoginIcon,
+  ContentCopy as CopyIcon,
 } from "@mui/icons-material";
 import { supabaseSync } from "../services/supabaseSync";
 import { useStore } from "../store";
+import localforage from "localforage";
 
 export const SupabaseManager: React.FC = () => {
   const [familyName, setFamilyName] = useState("");
@@ -33,6 +36,21 @@ export const SupabaseManager: React.FC = () => {
 
   const { replaceAll } = useStore();
 
+  // Copy family ID to clipboard
+  const copyFamilyId = async () => {
+    if (syncStatus.familyId) {
+      try {
+        await navigator.clipboard.writeText(syncStatus.familyId);
+        setSuccess("Familj-ID kopierat till urklipp!");
+        setTimeout(() => setSuccess(null), 3000);
+      } catch (error) {
+        console.error("Failed to copy:", error);
+        setError("Kunde inte kopiera familj-ID");
+        setTimeout(() => setError(null), 3000);
+      }
+    }
+  };
+
   useEffect(() => {
     // Load current family ID
     const currentFamilyId = supabaseSync.getFamilyId();
@@ -40,23 +58,29 @@ export const SupabaseManager: React.FC = () => {
       setFamilyId(currentFamilyId);
     }
 
-    // Subscribe to sync events
-    const unsubscribe = supabaseSync.subscribe((data) => {
-      setSyncStatus(supabaseSync.getSyncStatus());
-
-      // If we received data from real-time sync, update the app
-      if (data) {
-        console.log("Real-time sync data received, updating app...");
-        handleRealTimeUpdate(data);
+    // Auto-fetch initial data if family is configured
+    const autoFetchInitialData = async () => {
+      if (currentFamilyId) {
+        console.log("Auto-fetching initial data for family:", currentFamilyId);
+        const data = await supabaseSync.readFromDatabase();
+        if (data) {
+          console.log("Initial data fetched, updating app...");
+          handleRealTimeUpdate(data);
+        }
       }
-    });
-
-    return () => {
-      unsubscribe();
     };
+
+    autoFetchInitialData();
   }, []);
 
   const handleRealTimeUpdate = async (data: any) => {
+    console.log("🔄 Processing real-time update with data:", {
+      hasDrawers: !!data.drawers,
+      hasShoppingList: !!data.shoppingList,
+      drawerCount: Object.keys(data.drawers || {}).length,
+      shoppingListCount: (data.shoppingList || []).length,
+    });
+
     try {
       // Convert dates back to Date objects
       const processedData = {
@@ -76,8 +100,30 @@ export const SupabaseManager: React.FC = () => {
         })),
       };
 
+      console.log("📝 Updating drawers with processed data");
       await replaceAll(processedData.drawers);
+
+      // Also update shopping list if it exists in the data
+      if (processedData.shoppingList) {
+        const { shoppingList } = useStore.getState();
+        // Only update if the data is different to avoid loops
+        if (
+          JSON.stringify(shoppingList) !==
+          JSON.stringify(processedData.shoppingList)
+        ) {
+          console.log("🛒 Updating shopping list with new data");
+          useStore.setState({ shoppingList: processedData.shoppingList });
+          await localforage.setItem(
+            "frysen_shopping_list",
+            processedData.shoppingList
+          );
+        } else {
+          console.log("🛒 Shopping list unchanged, skipping update");
+        }
+      }
+
       setSuccess("Data synkroniserad automatiskt från annan enhet!");
+      console.log("✅ Real-time update processed successfully");
     } catch (error) {
       console.error("Failed to process real-time update:", error);
       setError("Kunde inte synkronisera automatiskt");
@@ -424,7 +470,28 @@ export const SupabaseManager: React.FC = () => {
                 <br />
                 3. Klicka "Anslut till familj"
                 <br />
-                4. Ange familj-ID:t: <strong>{syncStatus.familyId}</strong>
+                4. Ange familj-ID:t:{" "}
+                <Box
+                  component="span"
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                  }}
+                >
+                  <strong>{syncStatus.familyId}</strong>
+                  <IconButton
+                    size="small"
+                    onClick={copyFamilyId}
+                    sx={{
+                      color: "text.secondary",
+                      p: 0.5,
+                      "&:hover": { bgcolor: "rgba(0,0,0,0.1)" },
+                    }}
+                  >
+                    <CopyIcon fontSize="small" />
+                  </IconButton>
+                </Box>
                 <br />
                 5. Klicka "Anslut"
                 <br />
@@ -435,7 +502,28 @@ export const SupabaseManager: React.FC = () => {
                   <strong>Dela detta med familjemedlemmar:</strong>
                   <br />
                   "Öppna Frysen → Synkronisering → Anslut till familj → Ange:{" "}
-                  {syncStatus.familyId} → Allt synkroniseras automatiskt!"
+                  <Box
+                    component="span"
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 0.5,
+                    }}
+                  >
+                    <strong>{syncStatus.familyId}</strong>
+                    <IconButton
+                      size="small"
+                      onClick={copyFamilyId}
+                      sx={{
+                        color: "info.contrastText",
+                        p: 0.5,
+                        "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
+                      }}
+                    >
+                      <CopyIcon fontSize="small" />
+                    </IconButton>
+                  </Box>{" "}
+                  → Allt synkroniseras automatiskt!"
                 </Typography>
               </Box>
             </>

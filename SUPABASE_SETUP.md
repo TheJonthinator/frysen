@@ -46,7 +46,8 @@ CREATE TABLE frysen_data (
   drawers JSONB DEFAULT '{}',
   shopping_list JSONB DEFAULT '[]',
   last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  version TEXT DEFAULT '1.0.0'
+  version TEXT DEFAULT '1.0.0',
+  device_id TEXT -- För att spåra vilken enhet som gjorde ändringen
 );
 
 -- RLS (Row Level Security) - tillåt alla operationer för nu
@@ -56,6 +57,9 @@ ALTER TABLE frysen_data ENABLE ROW LEVEL SECURITY;
 -- Skapa policy som tillåter alla operationer
 CREATE POLICY "Allow all operations" ON frysen_families FOR ALL USING (true);
 CREATE POLICY "Allow all operations" ON frysen_data FOR ALL USING (true);
+
+-- Om du redan har en databas, kör detta för att lägga till device_id kolumn:
+-- ALTER TABLE frysen_data ADD COLUMN device_id TEXT;
 ```
 
 ### 5. Skapa din familj
@@ -168,6 +172,7 @@ Familj-ID: family_1234567890_abc123def
    - `drawers` - JSON med dina lådor
    - `shopping_list` - JSON med inköpslista
    - `last_updated` - När data senast uppdaterades
+   - `device_id` - Vilken enhet som gjorde ändringen
 
 ### 5. Testa Live-sync
 
@@ -189,7 +194,7 @@ SELECT * FROM frysen_families;
 SELECT * FROM frysen_data;
 
 -- Se senaste uppdateringar
-SELECT family_id, last_updated, drawers, shopping_list
+SELECT family_id, last_updated, device_id, drawers, shopping_list
 FROM frysen_data
 ORDER BY last_updated DESC;
 
@@ -197,11 +202,3 @@ ORDER BY last_updated DESC;
 SELECT * FROM frysen_data
 WHERE family_id = 'ditt-familj-id-här';
 ```
-
-### 7. Real-time Logs
-
-1. Gå till **"Logs"** i sidomenyn
-2. Välj **"Realtime"**
-3. Du bör se live-uppdateringar när data synkas
-
-**Om du ser data i tabellerna och `last_updated` ändras när du synkar, fungerar allt!** 🎉

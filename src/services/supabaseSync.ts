@@ -7,54 +7,25 @@ interface SyncData {
   lastUpdated: string;
   version: string;
   familyId?: string;
+  device_id?: string;
 }
 
-// Using your environment variable naming convention
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID || '';
 const SUPABASE_PROJECT_URL = import.meta.env.VITE_SUPABASE_PROJECT_URL || '';
-const SUPABASE_SECRET = import.meta.env.VITE_SUPABASE_SECRET || '';
 const SUPABASE_API_KEY = import.meta.env.VITE_SUPABASE_API_KEY || '';
 
-// Debug environment variables
-console.log('Supabase Config:', {
-  projectId: SUPABASE_PROJECT_ID,
-  projectUrl: SUPABASE_PROJECT_URL,
-  hasSecret: !!SUPABASE_SECRET,
-  hasApiKey: !!SUPABASE_API_KEY,
-  envVars: {
-    VITE_SUPABASE_PROJECT_ID: import.meta.env.VITE_SUPABASE_PROJECT_ID,
-    VITE_SUPABASE_PROJECT_URL: import.meta.env.VITE_SUPABASE_PROJECT_URL,
-    VITE_SUPABASE_SECRET: import.meta.env.VITE_SUPABASE_SECRET ? '***' : 'missing',
-    VITE_SUPABASE_API_KEY: import.meta.env.VITE_SUPABASE_API_KEY ? '***' : 'missing'
-  }
-});
-
-// Debug all available environment variables
-console.log('All available env vars:', Object.keys(import.meta.env).filter(key => key.includes('SUPABASE')));
-
-// Use project URL if available, otherwise construct from project ID
 const SUPABASE_URL = SUPABASE_PROJECT_URL || (SUPABASE_PROJECT_ID ? `https://${SUPABASE_PROJECT_ID}.supabase.co` : '');
-
-// Use anon API key for client-side operations (NOT the secret key!)
 const SUPABASE_KEY = SUPABASE_API_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('Missing Supabase configuration:', {
-    url: SUPABASE_URL,
-    hasKey: !!SUPABASE_KEY
-  });
-  console.error('Please check your .env file has the correct variable names with VITE_ prefix');
-  console.error('Use the anon public key (VITE_SUPABASE_API_KEY), NOT the secret key!');
-}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
   },
-  realtime: {
-    params: {
-      eventsPerSecond: 10
+  global: {
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
     }
   }
 });
@@ -65,41 +36,28 @@ export class SupabaseSync {
   private isSyncing = false;
   private observers: Set<(data?: SyncData) => void> = new Set();
   private realtimeSubscription: any = null;
-  private lastLocalUpdate: string | null = null;
+  private deviceId: string;
 
   constructor() {
     this.familyId = localStorage.getItem('frysen_family_id');
     
-    // Clean up any old Google Drive related localStorage data
-    this.cleanupOldData();
-  }
-
-  // Clean up old Google Drive related data
-  private cleanupOldData() {
-    const keysToRemove = [
-      'frysen_family',
-      'frysen_sync_status',
-      'google_drive_access_token',
-      'google_drive_refresh_token',
-      'gapi_access_token',
-      'gapi_refresh_token'
-    ];
+    // Generate a unique device ID
+    this.deviceId = localStorage.getItem('frysen_device_id') || 
+      `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('frysen_device_id', this.deviceId);
     
-    keysToRemove.forEach(key => {
-      if (localStorage.getItem(key)) {
-        console.log('Removing old localStorage key:', key);
-        localStorage.removeItem(key);
-      }
-    });
+    // Start real-time sync if we have a family ID
+    if (this.familyId) {
+      setTimeout(() => {
+        this.startRealtimeSync();
+      }, 0);
+    }
   }
 
-  setFamilyId(familyId: string) {
+  async setFamilyId(familyId: string) {
     this.familyId = familyId;
     localStorage.setItem('frysen_family_id', familyId);
-    console.log('Family ID set to:', familyId);
-    
-    // Start real-time sync when family is set
-    this.startRealtimeSync();
+    await this.startRealtimeSync();
   }
 
   getFamilyId(): string | null {
@@ -108,23 +66,75 @@ export class SupabaseSync {
 
   subscribe(callback: (data?: SyncData) => void) {
     this.observers.add(callback);
-    return () => this.observers.delete(callback);
+    return () => {
+      this.observers.delete(callback);
+    };
   }
 
   private notifyObservers(data?: SyncData) {
-    this.observers.forEach(callback => callback(data));
+    console.log(`🔔 Notifying ${this.observers.size} observers with data:`, data ? 'present' : 'undefined');
+    this.observers.forEach((callback) => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error('Observer failed:', error);
+      }
+    });
   }
 
-  // Start real-time synchronization
-  private startRealtimeSync() {
-    if (!this.familyId) return;
+  private async startRealtimeSync() {
+    console.log('🌐 startRealtimeSync() called');
+    
+    if (!this.familyId) {
+      console.log('🌐 No family ID, skipping real-time sync');
+      return;
+    }
 
-    // Stop existing subscription
     this.stopRealtimeSync();
 
-    console.log('Starting real-time sync for family:', this.familyId);
+    console.log('🌐 Starting real-time sync for family:', this.familyId);
 
-    // Subscribe to changes in the frysen_data table
+    // Test basic connectivity first
+    console.log('🌐 Testing basic Supabase connectivity...');
+    try {
+      const { error } = await supabase
+        .from('frysen_data')
+        .select('count')
+        .limit(1);
+      
+      if (error) {
+        console.error('❌ Basic connectivity test failed:', error);
+        console.error('🌐 Cannot reach Supabase database');
+        return;
+      } else {
+        console.log('✅ Basic connectivity test passed');
+      }
+    } catch (error) {
+      console.error('❌ Basic connectivity test failed:', error);
+      console.error('🌐 Network or configuration issue');
+      return;
+    }
+
+    // Fetch current data
+    const currentData = await this.readFromDatabase();
+    if (currentData) {
+      console.log('🌐 Fetched current data, notifying observers');
+      this.notifyObservers(currentData);
+    }
+
+    // Subscribe to real-time updates
+    console.log('🌐 Creating real-time subscription for family:', this.familyId);
+    console.log('🌐 Filter: family_id only (no device filter)');
+    
+    // Add timeout to detect hanging subscriptions
+    const subscriptionTimeout = setTimeout(() => {
+      console.error('⏰ Realtime subscription timeout - no response after 10 seconds');
+      console.error('🌐 This suggests:');
+      console.error('   - Network connectivity issues');
+      console.error('   - Supabase real-time service problems');
+      console.error('   - Mobile network restrictions');
+    }, 10000);
+    
     this.realtimeSubscription = supabase
       .channel(`frysen_data_${this.familyId}`)
       .on(
@@ -136,50 +146,70 @@ export class SupabaseSync {
           filter: `family_id=eq.${this.familyId}`
         },
         (payload) => {
-          console.log('Real-time update received:', payload);
+          console.log('📡 [REMOTE] Real-time update received:', {
+            eventType: payload.eventType,
+            device_id: (payload.new as any)?.device_id,
+            last_updated: (payload.new as any)?.last_updated
+          });
           
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-            const newData = payload.new;
+            const r = payload.new;
+            const syncData: SyncData = {
+              drawers: r.drawers ?? {},
+              shoppingList: r.shopping_list ?? [],
+              lastUpdated: r.last_updated ?? new Date().toISOString(),
+              version: r.version ?? '1.0.0',
+              familyId: this.familyId!,
+              device_id: r.device_id
+            };
             
-            // Check if this update is from another device
-            if (newData.last_updated !== this.lastLocalUpdate) {
-              console.log('Remote update detected, notifying observers');
-              
-              const syncData: SyncData = {
-                drawers: newData.drawers || {},
-                shoppingList: newData.shopping_list || [],
-                lastUpdated: newData.last_updated || new Date().toISOString(),
-                version: newData.version || '1.0.0',
-                familyId: this.familyId!
-              };
-              
-              this.lastSyncTime = new Date();
-              this.notifyObservers(syncData);
-            }
+            console.log('📡 [REMOTE] Notifying observers of remote update from device:', r.device_id);
+            this.lastSyncTime = new Date();
+            this.notifyObservers(syncData);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        clearTimeout(subscriptionTimeout); // Clear timeout when we get a status
+        
+        console.log('🌐 Realtime subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime subscription active for family:', this.familyId);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime subscription failed for family:', this.familyId);
+          console.error('🌐 This could be due to:');
+          console.error('   - Network connectivity issues');
+          console.error('   - Supabase service down');
+          console.error('   - Authentication problems');
+          console.error('   - Database policy restrictions');
+        } else if (status === 'CLOSED') {
+          console.error('🚪 Realtime subscription closed');
+          console.error('🌐 Connection was closed unexpectedly');
+        } else if (status === 'TIMED_OUT') {
+          console.error('⏰ Realtime subscription timed out');
+          console.error('🌐 Network connection is too slow or unstable');
+        } else if (status === 'RETRYING') {
+          console.log('🔄 Realtime subscription retrying...');
+        } else {
+          console.log('🌐 Realtime subscription status:', status);
+        }
+      });
   }
 
-  // Stop real-time synchronization
   private stopRealtimeSync() {
     if (this.realtimeSubscription) {
-      console.log('Stopping real-time sync');
       supabase.removeChannel(this.realtimeSubscription);
       this.realtimeSubscription = null;
     }
   }
 
-  // Read data from Supabase
   async readFromDatabase(): Promise<SyncData | null> {
-    if (!this.familyId) {
-      console.log('No family ID configured');
-      return null;
-    }
+    if (!this.familyId) return null;
 
     try {
-      console.log('Reading from Supabase...');
+      console.log('📖 [LOCAL] Reading from database for family:', this.familyId);
+      console.log('📖 [LOCAL] Supabase URL:', SUPABASE_URL);
+      console.log('📖 [LOCAL] Supabase Key length:', SUPABASE_KEY.length);
       
       const { data, error } = await supabase
         .from('frysen_data')
@@ -188,8 +218,16 @@ export class SupabaseSync {
         .single();
 
       if (error) {
+        console.error('❌ [LOCAL] Read failed:', error);
+        console.error('❌ [LOCAL] Error details:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+        
         if (error.code === 'PGRST116') {
-          // No data found, return empty structure
+          console.log('📖 [LOCAL] No data found, returning empty data');
           return {
             drawers: {},
             shoppingList: [],
@@ -198,65 +236,76 @@ export class SupabaseSync {
             familyId: this.familyId
           };
         }
+        
+        // Only throw if it's not a PGRST116 error
+        console.error('❌ [LOCAL] Unexpected error, throwing:', error);
         throw error;
       }
 
+      console.log('✅ [LOCAL] Read successful:', {
+        family_id: data.family_id,
+        last_updated: data.last_updated,
+        device_id: data.device_id
+      });
+
       this.lastSyncTime = new Date();
-      console.log('Read successful:', data);
       
       return {
         drawers: data.drawers || {},
         shoppingList: data.shopping_list || [],
         lastUpdated: data.last_updated || new Date().toISOString(),
         version: data.version || '1.0.0',
-        familyId: this.familyId
+        familyId: this.familyId,
+        device_id: data.device_id
       };
     } catch (error) {
-      console.error('Read failed:', error);
+      console.error('❌ [LOCAL] Read failed:', error);
       return null;
     }
   }
 
-  // Write data to Supabase
   async writeToDatabase(data: SyncData): Promise<boolean> {
-    if (!this.familyId) {
-      console.log('No family ID configured');
-      return false;
-    }
-
-    if (this.isSyncing) {
-      console.log('Already syncing, skipping write');
-      return false;
-    }
+    if (!this.familyId || this.isSyncing) return false;
 
     try {
       this.isSyncing = true;
-      console.log('Writing to Supabase...');
+      console.log('📝 [LOCAL] Writing to database...');
 
       const syncData = {
         family_id: this.familyId,
         drawers: data.drawers,
         shopping_list: data.shoppingList,
         last_updated: new Date().toISOString(),
-        version: '1.0.0'
+        version: '1.0.0',
+        device_id: this.deviceId
       };
 
-      // Store the timestamp to avoid triggering our own real-time updates
-      this.lastLocalUpdate = syncData.last_updated;
-
-      // Upsert (insert or update) the data
-      const { error } = await supabase
+      const { data: row, error } = await supabase
         .from('frysen_data')
-        .upsert(syncData, { onConflict: 'family_id' });
+        .upsert(syncData, { onConflict: 'family_id' })
+        .select('family_id, device_id, last_updated, drawers, shopping_list')
+        .single();
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
+
+      console.log('✅ [LOCAL] Database write completed:', {
+        device_id: row?.device_id,
+        last_updated: row?.last_updated
+      });
+
+      // Notify observers with the actual database data
+      console.log('📤 [LOCAL] Notifying observers of local update');
+      this.notifyObservers({
+        drawers: data.drawers,
+        shoppingList: data.shoppingList,
+        lastUpdated: row?.last_updated ?? syncData.last_updated,
+        version: '1.0.0',
+        familyId: this.familyId!,
+        device_id: row?.device_id
+      });
 
       this.lastSyncTime = new Date();
-      console.log('Write successful');
-      
-      this.notifyObservers();
+      console.log('✅ [LOCAL] Write operation completed successfully');
       return true;
     } catch (error) {
       console.error('Write failed:', error);
@@ -266,12 +315,12 @@ export class SupabaseSync {
     }
   }
 
-  // Create a new family
   async createFamily(familyName: string): Promise<string | null> {
     try {
+      console.log('🏠 Creating new family:', familyName);
       const familyId = `family_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      const { error } = await supabase
+      const { error: familyError } = await supabase
         .from('frysen_families')
         .insert({
           family_id: familyId,
@@ -279,20 +328,36 @@ export class SupabaseSync {
           created_at: new Date().toISOString()
         });
 
-      if (error) {
-        throw error;
+      if (familyError) throw familyError;
+
+      console.log('✅ Family created successfully:', familyId);
+
+      // Initialize the family with empty data
+      console.log('📝 Initializing family with empty data...');
+      const { error: dataError } = await supabase
+        .from('frysen_data')
+        .insert({
+          family_id: familyId,
+          drawers: {},
+          shopping_list: [],
+          device_id: this.deviceId
+        });
+
+      if (dataError) {
+        console.error('❌ Failed to initialize family data:', dataError);
+        throw dataError;
       }
 
-      this.setFamilyId(familyId);
-      console.log('Family created:', familyId);
+      console.log('✅ Family data initialized successfully');
+
+      await this.setFamilyId(familyId);
       return familyId;
     } catch (error) {
-      console.error('Failed to create family:', error);
+      console.error('❌ Failed to create family:', error);
       return null;
     }
   }
 
-  // Join an existing family
   async joinFamily(familyId: string): Promise<boolean> {
     try {
       const { data, error } = await supabase
@@ -305,8 +370,7 @@ export class SupabaseSync {
         throw new Error('Family not found');
       }
 
-      this.setFamilyId(familyId);
-      console.log('Joined family:', familyId);
+      await this.setFamilyId(familyId);
       return true;
     } catch (error) {
       console.error('Failed to join family:', error);
@@ -314,7 +378,6 @@ export class SupabaseSync {
     }
   }
 
-  // Get sync status
   getSyncStatus() {
     return {
       isConfigured: !!this.familyId,
@@ -330,8 +393,6 @@ export class SupabaseSync {
     this.familyId = null;
     localStorage.removeItem('frysen_family_id');
     this.lastSyncTime = null;
-    this.lastLocalUpdate = null;
-    console.log('Sync configuration cleared');
   }
 }
 

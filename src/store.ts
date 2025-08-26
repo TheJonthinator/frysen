@@ -40,6 +40,8 @@ type State = {
   checkForUpdates: () => Promise<void>;
   getCurrentVersion: () => string;
   getLastCheckTime: () => Date | null;
+  applySyncSnapshot: (data: { drawers: DrawerMap; shoppingList: ShoppingItem[] }) => Promise<void>;
+
 };
 
 const empty = (): DrawerMap => {
@@ -72,7 +74,7 @@ const debouncedAutoSave = (drawers: DrawerMap, shoppingList: ShoppingItem[]) => 
   }
   autoSaveTimeout = setTimeout(() => {
     autoSaveToSupabase(drawers, shoppingList);
-  }, 1000); // 1 second delay
+  }, 2000); // 2 second delay to prevent rapid updates
 };
 
 export const useStore = create<State>((set, get) => ({
@@ -97,8 +99,18 @@ export const useStore = create<State>((set, get) => ({
       localforage.getItem<string[]>(ITEM_HISTORY_KEY),
       localforage.getItem<ShoppingItem[]>(SHOPPING_LIST_KEY)
     ]);
+    
+    // Ensure all drawers are arrays
+    const normalizedDrawers = data || empty();
+    for (let i = 1; i <= DRAWER_COUNT; i++) {
+      if (!Array.isArray(normalizedDrawers[i])) {
+        console.warn(`Drawer ${i} is not an array during load, initializing as empty array`);
+        normalizedDrawers[i] = [];
+      }
+    }
+    
     set({ 
-      drawers: data || empty(),
+      drawers: normalizedDrawers,
       dateDisplayMode: dateDisplay || 'date',
       itemHistory: history || [],
       shoppingList: shoppingList || []
@@ -106,6 +118,13 @@ export const useStore = create<State>((set, get) => ({
   },
   addItem: async (d: number, name: string) => {
     const s = { ...get().drawers };
+    
+    // Ensure s[d] is always an array
+    if (!Array.isArray(s[d])) {
+      console.warn(`Drawer ${d} is not an array, initializing as empty array`);
+      s[d] = [];
+    }
+    
     const item: Item = {
       id: generateId(),
       name,
@@ -124,6 +143,13 @@ export const useStore = create<State>((set, get) => ({
   },
   editItem: async (d: number, idx: number, updates: Partial<Item>) => {
     const s = { ...get().drawers };
+    
+    // Ensure s[d] is always an array
+    if (!Array.isArray(s[d])) {
+      console.warn(`Drawer ${d} is not an array, initializing as empty array`);
+      s[d] = [];
+    }
+    
     s[d] = s[d].map((v, i) => (i === idx ? { ...v, ...updates } : v));
     set({ drawers: s });
     await localforage.setItem(KEY, s);
@@ -133,6 +159,13 @@ export const useStore = create<State>((set, get) => ({
   },
   removeItem: async (d: number, idx: number) => {
     const s = { ...get().drawers };
+    
+    // Ensure s[d] is always an array
+    if (!Array.isArray(s[d])) {
+      console.warn(`Drawer ${d} is not an array, initializing as empty array`);
+      s[d] = [];
+    }
+    
     s[d] = s[d].filter((_, i) => i !== idx);
     set({ drawers: s });
     await localforage.setItem(KEY, s);
@@ -142,6 +175,13 @@ export const useStore = create<State>((set, get) => ({
   },
   increaseQuantity: async (d: number, idx: number) => {
     const s = { ...get().drawers };
+    
+    // Ensure s[d] is always an array
+    if (!Array.isArray(s[d])) {
+      console.warn(`Drawer ${d} is not an array, initializing as empty array`);
+      s[d] = [];
+    }
+    
     const item = s[d][idx];
     s[d][idx] = { ...item, quantity: item.quantity + 1 };
     set({ drawers: s });
@@ -152,6 +192,13 @@ export const useStore = create<State>((set, get) => ({
   },
   decreaseQuantity: async (d: number, idx: number) => {
     const s = { ...get().drawers };
+    
+    // Ensure s[d] is always an array
+    if (!Array.isArray(s[d])) {
+      console.warn(`Drawer ${d} is not an array, initializing as empty array`);
+      s[d] = [];
+    }
+    
     const item = s[d][idx];
     if (item.quantity > 1) {
       s[d][idx] = { ...item, quantity: item.quantity - 1 };
@@ -164,6 +211,13 @@ export const useStore = create<State>((set, get) => ({
   },
   deleteAndAddToShoppingList: async (d: number, idx: number) => {
     const s = { ...get().drawers };
+    
+    // Ensure s[d] is always an array
+    if (!Array.isArray(s[d])) {
+      console.warn(`Drawer ${d} is not an array, initializing as empty array`);
+      s[d] = [];
+    }
+    
     const item = s[d][idx];
     
     // Remove from inventory
@@ -201,6 +255,17 @@ export const useStore = create<State>((set, get) => ({
   },
   moveItem: async (fromDrawer: number, fromIdx: number, toDrawer: number, toIdx?: number) => {
     const s = { ...get().drawers };
+    
+    // Ensure both drawers are always arrays
+    if (!Array.isArray(s[fromDrawer])) {
+      console.warn(`From drawer ${fromDrawer} is not an array, initializing as empty array`);
+      s[fromDrawer] = [];
+    }
+    if (!Array.isArray(s[toDrawer])) {
+      console.warn(`To drawer ${toDrawer} is not an array, initializing as empty array`);
+      s[toDrawer] = [];
+    }
+    
     const item = s[fromDrawer][fromIdx];
     s[fromDrawer] = s[fromDrawer].filter((_, i) => i !== fromIdx);
     
@@ -307,6 +372,7 @@ export const useStore = create<State>((set, get) => ({
     // Auto-save to Supabase if configured
     debouncedAutoSave(get().drawers, newList);
   },
+  
   clearCompletedShoppingItems: async () => {
     const newList = get().shoppingList.filter(item => !item.completed);
     set({ shoppingList: newList });
@@ -325,4 +391,18 @@ export const useStore = create<State>((set, get) => ({
   },
   getCurrentVersion: () => updateService.getCurrentVersion(),
   getLastCheckTime: () => updateService.getLastCheckTime(),
+  applySyncSnapshot: async ({ drawers, shoppingList }) => {
+    // Ensure all drawers are arrays before applying
+    const normalizedDrawers: DrawerMap = {} as any;
+    for (let i = 1; i <= DRAWER_COUNT; i++) {
+      normalizedDrawers[i] = Array.isArray(drawers[i]) ? drawers[i] : [];
+    }
+    
+    // uppdatera lokalt och persistera – men INTE Supabase
+    set({ drawers: normalizedDrawers, shoppingList });
+    await Promise.all([
+      localforage.setItem(KEY, normalizedDrawers),
+      localforage.setItem(SHOPPING_LIST_KEY, shoppingList),
+    ]);
+  },
 }));
