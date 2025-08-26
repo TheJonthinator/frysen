@@ -1,14 +1,17 @@
 import { create } from "zustand";
 import localforage from "localforage";
-import type { Item, DrawerMap, DateDisplayMode, ShoppingItem, UpdateStatus, UpdateInfo } from "./types";
+import type { Item, DrawerMap, DateDisplayMode, ShoppingItem, UpdateStatus, UpdateInfo, Family, SyncStatus } from "./types";
 import { DRAWER_COUNT } from "./types";
 import { updateService } from "./services/updateService";
+import { googleDriveService } from "./services/googleDriveService";
 
 const KEY = "frysen_v5";
 
 const DATE_DISPLAY_KEY = "frysen_date_display";
 const ITEM_HISTORY_KEY = "frysen_item_history";
 const SHOPPING_LIST_KEY = "frysen_shopping_list";
+const FAMILY_KEY = "frysen_family";
+const SYNC_STATUS_KEY = "frysen_sync_status";
 localforage.config({ name: "frysen" });
 
 type State = {
@@ -18,6 +21,8 @@ type State = {
   shoppingList: ShoppingItem[];
   updateStatus: UpdateStatus;
   updateInfo: UpdateInfo | null;
+  currentFamily: Family | null;
+  syncStatus: SyncStatus;
   load: () => Promise<void>;
   addItem: (drawer: number, name: string) => Promise<void>;
   editItem: (drawer: number, idx: number, updates: Partial<Item>) => Promise<void>;
@@ -35,6 +40,10 @@ type State = {
   checkForUpdates: () => Promise<void>;
   getCurrentVersion: () => string;
   getLastCheckTime: () => Date | null;
+  setCurrentFamily: (family: Family | null) => Promise<void>;
+  syncWithFamily: () => Promise<void>;
+  signInWithGoogle: () => Promise<boolean>;
+  signOutFromGoogle: () => Promise<void>;
 };
 
 const empty = (): DrawerMap => {
@@ -52,6 +61,14 @@ export const useStore = create<State>((set, get) => ({
   shoppingList: [],
   updateStatus: 'up_to_date',
   updateInfo: null,
+  currentFamily: null,
+  syncStatus: {
+    isConnected: false,
+    familyId: null,
+    lastSync: null,
+    syncError: null,
+    isHost: false,
+  },
   load: async () => {
     const [data, dateDisplay, history, shoppingList] = await Promise.all([
       localforage.getItem<DrawerMap>(KEY),
@@ -192,4 +209,105 @@ export const useStore = create<State>((set, get) => ({
   },
   getCurrentVersion: () => updateService.getCurrentVersion(),
   getLastCheckTime: () => updateService.getLastCheckTime(),
+  setCurrentFamily: async (family: Family | null) => {
+    set({ currentFamily: family });
+    await localforage.setItem(FAMILY_KEY, family);
+    
+    if (family) {
+      set({
+        syncStatus: {
+          isConnected: true,
+          familyId: family.id,
+          lastSync: null,
+          syncError: null,
+          isHost: family.members.find(m => m.email === googleDriveService.getCurrentUser()?.email)?.isHost || false,
+        }
+      });
+      await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
+    } else {
+      set({
+        syncStatus: {
+          isConnected: false,
+          familyId: null,
+          lastSync: null,
+          syncError: null,
+          isHost: false,
+        }
+      });
+      await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
+    }
+  },
+  syncWithFamily: async () => {
+    const family = get().currentFamily;
+    if (!family) return;
+
+    try {
+      set({
+        syncStatus: {
+          ...get().syncStatus,
+          syncError: null,
+        }
+      });
+
+      // Get current data
+      const currentData = {
+        drawers: get().drawers,
+        shoppingList: get().shoppingList,
+        settings: {
+          dateDisplayMode: get().dateDisplayMode,
+          itemHistory: get().itemHistory,
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+
+      // Update family data
+      const success = await googleDriveService.updateFamilyData(family.id, currentData);
+      
+      if (success) {
+        set({
+          syncStatus: {
+            ...get().syncStatus,
+            lastSync: new Date(),
+          }
+        });
+        await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
+      } else {
+        throw new Error('Failed to sync with family');
+      }
+    } catch (error) {
+      set({
+        syncStatus: {
+          ...get().syncStatus,
+          syncError: error instanceof Error ? error.message : 'Sync failed',
+        }
+      });
+      await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
+    }
+  },
+  signInWithGoogle: async () => {
+    try {
+      const user = await googleDriveService.signIn();
+      return !!user;
+    } catch (error) {
+      console.error('Google sign-in failed:', error);
+      return false;
+    }
+  },
+  signOutFromGoogle: async () => {
+    await googleDriveService.signOut();
+    set({
+      currentFamily: null,
+      syncStatus: {
+        isConnected: false,
+        familyId: null,
+        lastSync: null,
+        syncError: null,
+        isHost: false,
+      }
+    });
+    await Promise.all([
+      localforage.setItem(FAMILY_KEY, null),
+      localforage.setItem(SYNC_STATUS_KEY, get().syncStatus),
+    ]);
+  },
 }));

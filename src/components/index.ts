@@ -3,4 +3,5 @@ export { DraggableItemCard } from './DraggableItemCard';
 export { DroppableDrawer } from './DroppableDrawer';
 export { AddItemForm } from './AddItemForm';
 export { ShoppingList } from './ShoppingList';
-export { UpdateIndicator } from './UpdateIndicator'; 
+export { UpdateIndicator } from './UpdateIndicator';
+export { FamilyManager } from './FamilyManager'; 
