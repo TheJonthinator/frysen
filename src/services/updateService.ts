@@ -25,9 +25,20 @@ class UpdateService {
         return { status: 'up_to_date' };
       }
 
+      // Skip update check if no internet connection
+      if (!navigator.onLine) {
+        console.log('No internet connection - skipping update check');
+        return { status: 'up_to_date' };
+      }
+
       const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
       
       if (!response.ok) {
+        if (response.status === 404) {
+          // No releases found - this is normal for new repositories
+          console.log('No releases found - repository is new or has no releases yet');
+          return { status: 'up_to_date' };
+        }
         throw new Error(`GitHub API error: ${response.status}`);
       }
 
