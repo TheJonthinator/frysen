@@ -37,7 +37,7 @@ jobs:
       - name: Read current version
         id: current_version
         run: |
-          CURRENT_VERSION=$(cat version.txt)
+          CURRENT_VERSION=$(cat version.txt | tr -d ' ')
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
           # Split version into parts
