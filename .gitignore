@@ -24,4 +24,4 @@ dist-ssr
 *.sw?
 
 # Embedded git repositories
-plugins/aod-bubble/.git
+plugins/aod-bubble/
