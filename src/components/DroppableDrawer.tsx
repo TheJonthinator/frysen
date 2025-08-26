@@ -10,6 +10,7 @@ export const DroppableDrawer: React.FC<DroppableDrawerProps> = ({
   items,
   onEdit,
   onDelete,
+  onDeleteAndAddToShoppingList,
   onIncreaseQuantity,
   onDecreaseQuantity,
   selectedItems,
@@ -71,6 +72,9 @@ export const DroppableDrawer: React.FC<DroppableDrawerProps> = ({
               item={item}
               onEdit={(updates) => onEdit(drawerNumber, idx, updates)}
               onDelete={() => onDelete(drawerNumber, idx)}
+              onDeleteAndAddToShoppingList={() =>
+                onDeleteAndAddToShoppingList(drawerNumber, idx)
+              }
               onIncreaseQuantity={() => onIncreaseQuantity(drawerNumber, idx)}
               onDecreaseQuantity={() => onDecreaseQuantity(drawerNumber, idx)}
               isSelected={selectedItems.has(item.id)}

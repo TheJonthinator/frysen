@@ -17,6 +17,7 @@ export interface ItemCardProps {
   item: Item;
   onEdit: (updates: Partial<Item>) => void;
   onDelete: () => void;
+  onDeleteAndAddToShoppingList: () => void;
   onIncreaseQuantity: () => void;
   onDecreaseQuantity: () => void;
   isSelected?: boolean;
@@ -30,6 +31,7 @@ export interface DraggableItemCardProps {
   item: Item;
   onEdit: (updates: Partial<Item>) => void;
   onDelete: () => void;
+  onDeleteAndAddToShoppingList: () => void;
   onIncreaseQuantity: () => void;
   onDecreaseQuantity: () => void;
   isSelected?: boolean;
@@ -43,6 +45,7 @@ export interface DroppableDrawerProps {
   items: Item[];
   onEdit: (drawer: number, idx: number, updates: Partial<Item>) => void;
   onDelete: (drawer: number, idx: number) => void;
+  onDeleteAndAddToShoppingList: (drawer: number, idx: number) => void;
   onIncreaseQuantity: (drawer: number, idx: number) => void;
   onDecreaseQuantity: (drawer: number, idx: number) => void;
   selectedItems: Set<string>;

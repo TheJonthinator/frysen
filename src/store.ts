@@ -27,6 +27,9 @@ type State = {
   addItem: (drawer: number, name: string) => Promise<void>;
   editItem: (drawer: number, idx: number, updates: Partial<Item>) => Promise<void>;
   removeItem: (drawer: number, idx: number) => Promise<void>;
+  increaseQuantity: (drawer: number, idx: number) => Promise<void>;
+  decreaseQuantity: (drawer: number, idx: number) => Promise<void>;
+  deleteAndAddToShoppingList: (drawer: number, idx: number) => Promise<void>;
   moveItem: (fromDrawer: number, fromIdx: number, toDrawer: number, toIdx?: number) => Promise<void>;
   replaceAll: (data: DrawerMap) => Promise<void>;
   toggleDateDisplay: () => Promise<void>;
@@ -135,6 +138,31 @@ export const useStore = create<State>((set, get) => ({
       set({ drawers: s });
       await localforage.setItem(KEY, s);
     }
+  },
+  deleteAndAddToShoppingList: async (d: number, idx: number) => {
+    const s = { ...get().drawers };
+    const item = s[d][idx];
+    
+    // Remove from inventory
+    s[d] = s[d].filter((_, i) => i !== idx);
+    set({ drawers: s });
+    
+    // Add to shopping list
+    const shoppingItem: ShoppingItem = {
+      id: generateId(),
+      name: item.name,
+      addedDate: new Date(),
+      completed: false,
+    };
+    const newShoppingList = [...get().shoppingList, shoppingItem];
+    set({ shoppingList: newShoppingList });
+    
+    // Save both changes
+    await Promise.all([
+      localforage.setItem(KEY, s),
+      localforage.setItem(SHOPPING_LIST_KEY, newShoppingList),
+      get().addToHistory(item.name)
+    ]);
   },
   moveItem: async (fromDrawer: number, fromIdx: number, toDrawer: number, toIdx?: number) => {
     const s = { ...get().drawers };

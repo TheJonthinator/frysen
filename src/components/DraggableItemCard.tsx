@@ -8,6 +8,7 @@ export const DraggableItemCard: React.FC<DraggableItemCardProps> = ({
   item,
   onEdit,
   onDelete,
+  onDeleteAndAddToShoppingList,
   onIncreaseQuantity,
   onDecreaseQuantity,
   isSelected,
@@ -36,6 +37,7 @@ export const DraggableItemCard: React.FC<DraggableItemCardProps> = ({
         item={item}
         onEdit={onEdit}
         onDelete={onDelete}
+        onDeleteAndAddToShoppingList={onDeleteAndAddToShoppingList}
         onIncreaseQuantity={onIncreaseQuantity}
         onDecreaseQuantity={onDecreaseQuantity}
         isSelected={isSelected}

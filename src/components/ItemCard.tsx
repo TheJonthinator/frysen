@@ -20,6 +20,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
+import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import type { ItemCardProps } from "../types";
 
 const formatDate = (date: Date) => {
@@ -30,6 +31,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   item,
   onEdit,
   onDelete,
+  onDeleteAndAddToShoppingList,
   onIncreaseQuantity,
   onDecreaseQuantity,
   isSelected = false,
@@ -39,6 +41,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   getDurationText,
 }) => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editData, setEditData] = useState({
     name: item.name,
     addedDate: item.addedDate,
@@ -166,7 +169,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           size="small"
           onClick={(e) => {
             e.stopPropagation();
-            onDelete();
+            setDeleteDialogOpen(true);
           }}
           sx={{ p: 0.5 }}
         >
@@ -217,6 +220,45 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           <Button onClick={() => setEditDialogOpen(false)}>Avbryt</Button>
           <Button onClick={handleSave} variant="contained">
             Spara
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Ta bort vara</DialogTitle>
+        <DialogContent>
+          <Typography>Vad vill du göra med "{item.name}"?</Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} variant="outlined">
+            Avbryt
+          </Button>
+          <Button
+            onClick={() => {
+              onDeleteAndAddToShoppingList();
+              setDeleteDialogOpen(false);
+            }}
+            variant="contained"
+            color="primary"
+            startIcon={<ShoppingCartIcon />}
+          >
+            Ta bort och lägg till i inköpslista
+          </Button>
+          <Button
+            onClick={() => {
+              onDelete();
+              setDeleteDialogOpen(false);
+            }}
+            variant="contained"
+            color="error"
+          >
+            Ta bort
           </Button>
         </DialogActions>
       </Dialog>

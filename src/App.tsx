@@ -71,6 +71,7 @@ export default function App() {
     addItem,
     editItem,
     removeItem,
+    deleteAndAddToShoppingList,
     increaseQuantity,
     decreaseQuantity,
     replaceAll,
@@ -451,6 +452,7 @@ export default function App() {
                     items={drawers[drawerNum] || []}
                     onEdit={editItem}
                     onDelete={removeItem}
+                    onDeleteAndAddToShoppingList={deleteAndAddToShoppingList}
                     onIncreaseQuantity={increaseQuantity}
                     onDecreaseQuantity={decreaseQuantity}
                     selectedItems={selectedItems}
