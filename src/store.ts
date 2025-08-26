@@ -219,34 +219,49 @@ export const useStore = create<State>((set, get) => ({
   },
   getCurrentVersion: () => updateService.getCurrentVersion(),
   getLastCheckTime: () => updateService.getLastCheckTime(),
-  setCurrentFamily: async (family: Family | null) => {
-    set({ currentFamily: family });
-    await localforage.setItem(FAMILY_KEY, family);
-    
-    if (family) {
-      set({
-        syncStatus: {
-          isConnected: true,
-          familyId: family.id,
-          lastSync: null,
-          syncError: null,
-          isHost: family.members.find(m => m.email === googleDriveService.getCurrentUser()?.email)?.isHost || false,
+      setCurrentFamily: async (family: Family | null) => {
+      set({ currentFamily: family });
+      await localforage.setItem(FAMILY_KEY, family);
+      
+      if (family) {
+        set({
+          syncStatus: {
+            isConnected: true,
+            familyId: family.id,
+            lastSync: null,
+            syncError: null,
+            isHost: family.members.find(m => m.email === googleDriveService.getCurrentUser()?.email)?.isHost || false,
+          }
+        });
+        await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
+      } else {
+        set({
+          syncStatus: {
+            isConnected: false,
+            familyId: null,
+            lastSync: null,
+            syncError: null,
+            isHost: false,
+          }
+        });
+        await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
+      }
+    },
+    createFamily: async (familyName: string) => {
+      try {
+        const result = await googleDriveService.createFamily(familyName);
+        if (result.success && result.family) {
+          await get().setCurrentFamily(result.family);
+          return { success: true, family: result.family };
+        } else {
+          console.error('Family creation failed:', result.error, result.errorCode);
+          return { success: false, error: result.error, errorCode: result.errorCode };
         }
-      });
-      await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
-    } else {
-      set({
-        syncStatus: {
-          isConnected: false,
-          familyId: null,
-          lastSync: null,
-          syncError: null,
-          isHost: false,
-        }
-      });
-      await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
-    }
-  },
+      } catch (error) {
+        console.error('Family creation error:', error);
+        return { success: false, error: 'Ett oväntat fel uppstod', errorCode: 'UNKNOWN_ERROR' };
+      }
+    },
   syncWithFamily: async () => {
     const family = get().currentFamily;
     if (!family) return;

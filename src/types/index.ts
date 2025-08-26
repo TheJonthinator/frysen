@@ -103,6 +103,7 @@ export interface FamilyRegistry {
   version: string;
   families: Record<string, Family>;
   lastUpdated: Date;
+  registryFileId?: string;
 }
 
 export interface SyncStatus {

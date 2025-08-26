@@ -115,11 +115,17 @@ class GoogleDriveService {
     return this.user;
   }
 
-  async createFamily(familyName: string): Promise<Family | null> {
-    if (!this.user) return null;
+  async createFamily(familyName: string): Promise<{ success: boolean; family?: Family; error?: string; errorCode?: string }> {
+    if (!this.user) {
+      console.error('FAMILY_CREATE_ERROR: No user logged in');
+      return { success: false, error: 'Ingen användare inloggad', errorCode: 'NO_USER' };
+    }
 
     try {
+      console.log('FAMILY_CREATE: Starting family creation for:', familyName);
+      
       // Create family sync file
+      console.log('FAMILY_CREATE: Creating sync file...');
       const syncFile = await this.createFile(
         `${FAMILY_SYNC_FILE_PREFIX}${familyName}.json`,
         JSON.stringify({
@@ -130,9 +136,19 @@ class GoogleDriveService {
         })
       );
 
+      if (!syncFile) {
+        console.error('FAMILY_CREATE_ERROR: Failed to create sync file');
+        return { success: false, error: 'Kunde inte skapa synkroniseringsfil', errorCode: 'SYNC_FILE_CREATE_FAILED' };
+      }
+
+      console.log('FAMILY_CREATE: Sync file created with ID:', syncFile.id);
+
       // Create or update family registry
+      console.log('FAMILY_CREATE: Getting family registry...');
       const registry = await this.getFamilyRegistry();
       const familyId = this.generateFamilyId();
+      
+      console.log('FAMILY_CREATE: Generated family ID:', familyId);
       
       const newFamily: Family = {
         id: familyId,
@@ -153,12 +169,16 @@ class GoogleDriveService {
       registry.families[familyId] = newFamily;
       registry.lastUpdated = new Date();
       
+      console.log('FAMILY_CREATE: Updating family registry...');
       await this.updateFamilyRegistry(registry);
 
-      return newFamily;
+      console.log('FAMILY_CREATE: Family created successfully:', newFamily);
+      return { success: true, family: newFamily };
     } catch (error) {
-      console.error('Failed to create family:', error);
-      return null;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorCode = this.getErrorCode(error);
+      console.error('FAMILY_CREATE_ERROR:', { error: errorMessage, errorCode, stack: error instanceof Error ? error.stack : undefined });
+      return { success: false, error: `Kunde inte skapa familj: ${errorMessage}`, errorCode };
     }
   }
 
@@ -319,6 +339,23 @@ class GoogleDriveService {
 
   private generateFamilyId(): string {
     return 'family_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  private getErrorCode(error: unknown): string {
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+      
+      if (message.includes('quota')) return 'QUOTA_EXCEEDED';
+      if (message.includes('permission')) return 'PERMISSION_DENIED';
+      if (message.includes('not found')) return 'NOT_FOUND';
+      if (message.includes('network')) return 'NETWORK_ERROR';
+      if (message.includes('timeout')) return 'TIMEOUT';
+      if (message.includes('unauthorized')) return 'UNAUTHORIZED';
+      if (message.includes('forbidden')) return 'FORBIDDEN';
+      if (message.includes('rate limit')) return 'RATE_LIMITED';
+    }
+    
+    return 'UNKNOWN_ERROR';
   }
 
   private encodeInviteCode(familyId: string): string {

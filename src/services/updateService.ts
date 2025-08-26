@@ -31,7 +31,17 @@ class UpdateService {
         return { status: 'up_to_date' };
       }
 
-      const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
+                   const headers: HeadersInit = {};
+             
+             // Add GitHub token if available (for private repos)
+             const githubToken = import.meta.env.VITE_GITHUB_TOKEN;
+             if (githubToken) {
+               headers.Authorization = `token ${githubToken}`;
+             }
+             
+             const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+               headers
+             });
       
                    if (!response.ok) {
                if (response.status === 404) {
@@ -39,12 +49,12 @@ class UpdateService {
                  console.log('No releases found - repository is new or has no releases yet');
                  return { status: 'up_to_date' };
                }
-               if (response.status === 403) {
-                 // Rate limited or forbidden - treat as up to date to avoid spam
-                 console.log('GitHub API rate limited or forbidden - treating as up to date');
-                 this.lastCheckTime = new Date();
-                 return { status: 'up_to_date' };
-               }
+                            if (response.status === 403) {
+               // Rate limited, forbidden, or private repo - treat as up to date
+               console.log('GitHub API 403 - likely private repo or rate limited, treating as up to date');
+               this.lastCheckTime = new Date();
+               return { status: 'up_to_date' };
+             }
                throw new Error(`GitHub API error: ${response.status}`);
              }
 

@@ -58,16 +58,22 @@ export const FamilyManager: React.FC<FamilyManagerProps> = ({
     setError(null);
 
     try {
-      const family = await googleDriveService.createFamily(familyName.trim());
-      if (family) {
-        onFamilyChange(family);
-        setSuccess(`Familj "${family.name}" skapad!`);
+      const result = await googleDriveService.createFamily(familyName.trim());
+      if (result.success && result.family) {
+        onFamilyChange(result.family);
+        setSuccess(`Familj "${result.family.name}" skapad!`);
         setIsCreateDialogOpen(false);
         setFamilyName("");
       } else {
-        setError("Kunde inte skapa familj");
+        console.error(
+          "Family creation failed:",
+          result.errorCode,
+          result.error
+        );
+        setError(result.error || "Kunde inte skapa familj");
       }
     } catch (err) {
+      console.error("Family creation error:", err);
       setError("Ett fel uppstod när familjen skulle skapas");
     } finally {
       setIsLoading(false);
