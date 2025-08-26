@@ -1,4 +1,4 @@
-name: Full Release (Web + Android)
+name: Android Patch Release
 
 on:
   push:
@@ -7,11 +7,12 @@ on:
     paths:
       - "android/**"
       - "capacitor.config.ts"
+      - "src/**"
       - "package.json"
       - "package-lock.json"
 
 jobs:
-  release:
+  android-patch:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -46,7 +47,6 @@ jobs:
 
       - name: Build Android APK
         run: |
-          npx cap add android
           npx cap sync android
           cd android
           ./gradlew assembleDebug
@@ -88,7 +88,7 @@ jobs:
           fi
 
           # Create release notes
-          RELEASE_NOTES="## Frysen v${{ steps.version.outputs.new_version }}
+          RELEASE_NOTES="## Frysen v${{ steps.version.outputs.new_version }} (Android Patch)
 
           ### Changes in this release:
 
@@ -101,7 +101,10 @@ jobs:
 
           ### Downloads:
           - Web App: Built and ready for deployment
-          - Android APK: Available in build artifacts"
+          - Android APK: Available for download below
+
+          ### Installation:
+          Download the APK and install it on your Android device. This will update your existing Frysen app."
 
           echo "release_notes<<EOF" >> $GITHUB_OUTPUT
           echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
@@ -117,19 +120,14 @@ jobs:
           git push origin master
           git push origin "v${{ steps.version.outputs.new_version }}"
 
-      - name: Upload Android APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: frysen-android-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-
       - name: Create Release
+        id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: "v${{ steps.version.outputs.new_version }}"
-          release_name: "Frysen v${{ steps.version.outputs.new_version }}"
+          release_name: "Frysen v${{ steps.version.outputs.new_version }} (Android Patch)"
           body: ${{ steps.release_notes.outputs.release_notes }}
           draft: false
           prerelease: false
@@ -141,5 +139,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./android/app/build/outputs/apk/debug/app-debug.apk
-          asset_name: frysen-v${{ steps.version.outputs.new_version }}-debug.apk
+          asset_name: frysen-v${{ steps.version.outputs.new_version }}-android-patch.apk
           asset_content_type: application/vnd.android.package-archive
