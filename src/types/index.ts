@@ -90,36 +90,3 @@ export interface UpdateCheckResult {
   error?: string;
 }
 
-// Family sync types
-export interface FamilyMember {
-  email: string;
-  name: string;
-  joinedAt: Date;
-  isHost: boolean;
-}
-
-export interface Family {
-  id: string;
-  name: string;
-  hostEmail: string;
-  syncFileId: string;
-  registryFileId: string;
-  members: FamilyMember[];
-  createdAt: Date;
-  lastUpdated: Date;
-}
-
-export interface FamilyRegistry {
-  version: string;
-  families: Record<string, Family>;
-  lastUpdated: Date;
-  registryFileId?: string;
-}
-
-export interface SyncStatus {
-  isConnected: boolean;
-  familyId: string | null;
-  lastSync: Date | null;
-  syncError: string | null;
-  isHost: boolean;
-}

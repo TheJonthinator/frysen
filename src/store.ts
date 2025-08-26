@@ -1,17 +1,15 @@
 import { create } from "zustand";
 import localforage from "localforage";
-import type { Item, DrawerMap, DateDisplayMode, ShoppingItem, UpdateStatus, UpdateInfo, Family, SyncStatus } from "./types";
+import type { Item, DrawerMap, DateDisplayMode, ShoppingItem, UpdateStatus, UpdateInfo } from "./types";
 import { DRAWER_COUNT } from "./types";
 import { updateService } from "./services/updateService";
-import { googleDriveService } from "./services/googleDriveService";
+import { supabaseSync } from "./services/supabaseSync";
 
 const KEY = "frysen_v5";
 
 const DATE_DISPLAY_KEY = "frysen_date_display";
 const ITEM_HISTORY_KEY = "frysen_item_history";
 const SHOPPING_LIST_KEY = "frysen_shopping_list";
-const FAMILY_KEY = "frysen_family";
-const SYNC_STATUS_KEY = "frysen_sync_status";
 localforage.config({ name: "frysen" });
 
 type State = {
@@ -21,8 +19,6 @@ type State = {
   shoppingList: ShoppingItem[];
   updateStatus: UpdateStatus;
   updateInfo: UpdateInfo | null;
-  currentFamily: Family | null;
-  syncStatus: SyncStatus;
   load: () => Promise<void>;
   addItem: (drawer: number, name: string) => Promise<void>;
   editItem: (drawer: number, idx: number, updates: Partial<Item>) => Promise<void>;
@@ -44,10 +40,6 @@ type State = {
   checkForUpdates: () => Promise<void>;
   getCurrentVersion: () => string;
   getLastCheckTime: () => Date | null;
-  setCurrentFamily: (family: Family | null) => Promise<void>;
-  syncWithFamily: () => Promise<void>;
-  signInWithGoogle: () => Promise<boolean>;
-  signOutFromGoogle: () => Promise<void>;
 };
 
 const empty = (): DrawerMap => {
@@ -57,6 +49,31 @@ const empty = (): DrawerMap => {
 };
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+// Helper function for auto-saving to Supabase
+const autoSaveToSupabase = (drawers: DrawerMap, shoppingList: ShoppingItem[]) => {
+  const syncStatus = supabaseSync.getSyncStatus();
+  if (syncStatus.isConfigured) {
+    const data = {
+      drawers,
+      shoppingList,
+      lastUpdated: new Date().toISOString(),
+      version: "1.0.0",
+    };
+    supabaseSync.writeToDatabase(data).catch(console.error);
+  }
+};
+
+// Debounced auto-save to prevent rapid database calls
+let autoSaveTimeout: NodeJS.Timeout | null = null;
+const debouncedAutoSave = (drawers: DrawerMap, shoppingList: ShoppingItem[]) => {
+  if (autoSaveTimeout) {
+    clearTimeout(autoSaveTimeout);
+  }
+  autoSaveTimeout = setTimeout(() => {
+    autoSaveToSupabase(drawers, shoppingList);
+  }, 1000); // 1 second delay
+};
 
 export const useStore = create<State>((set, get) => ({
   drawers: empty(),
@@ -74,27 +91,17 @@ export const useStore = create<State>((set, get) => ({
     isHost: false,
   },
   load: async () => {
-    const [data, dateDisplay, history, shoppingList, family, syncStatus] = await Promise.all([
+    const [data, dateDisplay, history, shoppingList] = await Promise.all([
       localforage.getItem<DrawerMap>(KEY),
       localforage.getItem<DateDisplayMode>(DATE_DISPLAY_KEY),
       localforage.getItem<string[]>(ITEM_HISTORY_KEY),
-      localforage.getItem<ShoppingItem[]>(SHOPPING_LIST_KEY),
-      localforage.getItem<Family>(FAMILY_KEY),
-      localforage.getItem<SyncStatus>(SYNC_STATUS_KEY)
+      localforage.getItem<ShoppingItem[]>(SHOPPING_LIST_KEY)
     ]);
     set({ 
       drawers: data || empty(),
       dateDisplayMode: dateDisplay || 'date',
       itemHistory: history || [],
-      shoppingList: shoppingList || [],
-      currentFamily: family || null,
-      syncStatus: syncStatus || {
-        isConnected: false,
-        familyId: null,
-        lastSync: null,
-        syncError: null,
-        isHost: false,
-      }
+      shoppingList: shoppingList || []
     });
   },
   addItem: async (d: number, name: string) => {
@@ -111,18 +118,27 @@ export const useStore = create<State>((set, get) => ({
       localforage.setItem(KEY, s),
       get().addToHistory(name)
     ]);
+    
+    // Auto-save to Supabase if configured
+    debouncedAutoSave(s, get().shoppingList);
   },
   editItem: async (d: number, idx: number, updates: Partial<Item>) => {
     const s = { ...get().drawers };
     s[d] = s[d].map((v, i) => (i === idx ? { ...v, ...updates } : v));
     set({ drawers: s });
     await localforage.setItem(KEY, s);
+    
+    // Auto-save to Supabase if configured
+    debouncedAutoSave(s, get().shoppingList);
   },
   removeItem: async (d: number, idx: number) => {
     const s = { ...get().drawers };
     s[d] = s[d].filter((_, i) => i !== idx);
     set({ drawers: s });
     await localforage.setItem(KEY, s);
+    
+    // Auto-save to Supabase if configured
+    debouncedAutoSave(s, get().shoppingList);
   },
   increaseQuantity: async (d: number, idx: number) => {
     const s = { ...get().drawers };
@@ -130,6 +146,9 @@ export const useStore = create<State>((set, get) => ({
     s[d][idx] = { ...item, quantity: item.quantity + 1 };
     set({ drawers: s });
     await localforage.setItem(KEY, s);
+    
+    // Auto-save to Supabase if configured
+    debouncedAutoSave(s, get().shoppingList);
   },
   decreaseQuantity: async (d: number, idx: number) => {
     const s = { ...get().drawers };
@@ -138,6 +157,9 @@ export const useStore = create<State>((set, get) => ({
       s[d][idx] = { ...item, quantity: item.quantity - 1 };
       set({ drawers: s });
       await localforage.setItem(KEY, s);
+      
+      // Auto-save to Supabase if configured
+      debouncedAutoSave(s, get().shoppingList);
     }
   },
   deleteAndAddToShoppingList: async (d: number, idx: number) => {
@@ -164,6 +186,18 @@ export const useStore = create<State>((set, get) => ({
       localforage.setItem(SHOPPING_LIST_KEY, newShoppingList),
       get().addToHistory(item.name)
     ]);
+    
+    // Auto-save to Supabase if configured
+    const syncStatus = supabaseSync.getSyncStatus();
+    if (syncStatus.isConfigured) {
+      const data = {
+        drawers: s,
+        shoppingList: newShoppingList,
+        lastUpdated: new Date().toISOString(),
+        version: "1.0.0",
+      };
+      supabaseSync.writeToDatabase(data).catch(console.error);
+    }
   },
   moveItem: async (fromDrawer: number, fromIdx: number, toDrawer: number, toIdx?: number) => {
     const s = { ...get().drawers };
@@ -178,10 +212,16 @@ export const useStore = create<State>((set, get) => ({
     
     set({ drawers: s });
     await localforage.setItem(KEY, s);
+    
+    // Auto-save to Supabase if configured
+    debouncedAutoSave(s, get().shoppingList);
   },
   replaceAll: async (data: DrawerMap) => {
     set({ drawers: data });
     await localforage.setItem(KEY, data);
+    
+    // Auto-save to Supabase if configured
+    debouncedAutoSave(data, get().shoppingList);
   },
 
   toggleDateDisplay: async () => {
@@ -235,6 +275,9 @@ export const useStore = create<State>((set, get) => ({
       localforage.setItem(SHOPPING_LIST_KEY, newList),
       get().addToHistory(name)
     ]);
+    
+    // Auto-save to Supabase if configured
+    debouncedAutoSave(get().drawers, newList);
   },
   toggleShoppingItem: async (id: string) => {
     const newList = get().shoppingList.map(item =>
@@ -242,11 +285,17 @@ export const useStore = create<State>((set, get) => ({
     );
     set({ shoppingList: newList });
     await localforage.setItem(SHOPPING_LIST_KEY, newList);
+    
+    // Auto-save to Supabase if configured
+    debouncedAutoSave(get().drawers, newList);
   },
   removeShoppingItem: async (id: string) => {
     const newList = get().shoppingList.filter(item => item.id !== id);
     set({ shoppingList: newList });
     await localforage.setItem(SHOPPING_LIST_KEY, newList);
+    
+    // Auto-save to Supabase if configured
+    debouncedAutoSave(get().drawers, newList);
   },
   editShoppingItem: async (id: string, name: string) => {
     const newList = get().shoppingList.map(item =>
@@ -254,11 +303,17 @@ export const useStore = create<State>((set, get) => ({
     );
     set({ shoppingList: newList });
     await localforage.setItem(SHOPPING_LIST_KEY, newList);
+    
+    // Auto-save to Supabase if configured
+    debouncedAutoSave(get().drawers, newList);
   },
   clearCompletedShoppingItems: async () => {
     const newList = get().shoppingList.filter(item => !item.completed);
     set({ shoppingList: newList });
     await localforage.setItem(SHOPPING_LIST_KEY, newList);
+    
+    // Auto-save to Supabase if configured
+    debouncedAutoSave(get().drawers, newList);
   },
   checkForUpdates: async () => {
     set({ updateStatus: 'checking' });
@@ -270,120 +325,4 @@ export const useStore = create<State>((set, get) => ({
   },
   getCurrentVersion: () => updateService.getCurrentVersion(),
   getLastCheckTime: () => updateService.getLastCheckTime(),
-      setCurrentFamily: async (family: Family | null) => {
-      set({ currentFamily: family });
-      await localforage.setItem(FAMILY_KEY, family);
-      
-      if (family) {
-        set({
-          syncStatus: {
-            isConnected: true,
-            familyId: family.id,
-            lastSync: null,
-            syncError: null,
-            isHost: family.members.find(m => m.email === googleDriveService.getCurrentUser()?.email)?.isHost || false,
-          }
-        });
-        await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
-      } else {
-        set({
-          syncStatus: {
-            isConnected: false,
-            familyId: null,
-            lastSync: null,
-            syncError: null,
-            isHost: false,
-          }
-        });
-        await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
-      }
-    },
-    createFamily: async (familyName: string) => {
-      try {
-        const result = await googleDriveService.createFamily(familyName);
-        if (result.success && result.family) {
-          await get().setCurrentFamily(result.family);
-          return { success: true, family: result.family };
-        } else {
-          console.error('Family creation failed:', result.error, result.errorCode);
-          return { success: false, error: result.error, errorCode: result.errorCode };
-        }
-      } catch (error) {
-        console.error('Family creation error:', error);
-        return { success: false, error: 'Ett oväntat fel uppstod', errorCode: 'UNKNOWN_ERROR' };
-      }
-    },
-  syncWithFamily: async () => {
-    const family = get().currentFamily;
-    if (!family) return;
-
-    try {
-      set({
-        syncStatus: {
-          ...get().syncStatus,
-          syncError: null,
-        }
-      });
-
-      // Get current data
-      const currentData = {
-        drawers: get().drawers,
-        shoppingList: get().shoppingList,
-        settings: {
-          dateDisplayMode: get().dateDisplayMode,
-          itemHistory: get().itemHistory,
-        },
-        lastUpdated: new Date().toISOString(),
-      };
-
-      // Update family data
-      const success = await googleDriveService.updateFamilyData(family.id, currentData);
-      
-      if (success) {
-        set({
-          syncStatus: {
-            ...get().syncStatus,
-            lastSync: new Date(),
-          }
-        });
-        await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
-      } else {
-        throw new Error('Failed to sync with family');
-      }
-    } catch (error) {
-      set({
-        syncStatus: {
-          ...get().syncStatus,
-          syncError: error instanceof Error ? error.message : 'Sync failed',
-        }
-      });
-      await localforage.setItem(SYNC_STATUS_KEY, get().syncStatus);
-    }
-  },
-  signInWithGoogle: async () => {
-    try {
-      const user = await googleDriveService.signIn();
-      return !!user;
-    } catch (error) {
-      console.error('Google sign-in failed:', error);
-      return false;
-    }
-  },
-  signOutFromGoogle: async () => {
-    await googleDriveService.signOut();
-    set({
-      currentFamily: null,
-      syncStatus: {
-        isConnected: false,
-        familyId: null,
-        lastSync: null,
-        syncError: null,
-        isHost: false,
-      }
-    });
-    await Promise.all([
-      localforage.setItem(FAMILY_KEY, null),
-      localforage.setItem(SYNC_STATUS_KEY, get().syncStatus),
-    ]);
-  },
 }));

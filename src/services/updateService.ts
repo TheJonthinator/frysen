@@ -1,4 +1,4 @@
-import type { UpdateCheckResult, UpdateInfo, UpdateStatus } from '../types';
+import type { UpdateCheckResult, UpdateInfo } from '../types';
 
 const CURRENT_VERSION = '1.0.2'; // This should match your current release
 const GITHUB_REPO = 'TheJonthinator/frysen';

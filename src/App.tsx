@@ -52,7 +52,7 @@ import {
   DroppableDrawer,
   ShoppingList,
   UpdateIndicator,
-  FamilyManager,
+  SupabaseManager,
 } from "./components";
 import type { Item, TabType } from "./types";
 import { DRAWER_COUNT, KOKSBANKEN_DRAWER } from "./types";
@@ -65,8 +65,6 @@ export default function App() {
     shoppingList,
     updateStatus,
     updateInfo,
-    currentFamily,
-    syncStatus,
     load,
     addItem,
     editItem,
@@ -86,10 +84,6 @@ export default function App() {
     clearCompletedShoppingItems,
     checkForUpdates,
     getCurrentVersion,
-    getLastCheckTime,
-    setCurrentFamily,
-    signInWithGoogle,
-    signOutFromGoogle,
   } = useStore();
 
   useEffect(() => {
@@ -258,8 +252,12 @@ export default function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AppBar position="static" elevation={0}>
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+        <Toolbar sx={{ flexWrap: "wrap", gap: 1 }}>
+          <Typography
+            variant="h6"
+            component="div"
+            sx={{ flexGrow: 1, minWidth: 0 }}
+          >
             FRYSEN
           </Typography>
 
@@ -268,7 +266,11 @@ export default function App() {
               direction="row"
               spacing={1}
               alignItems="center"
-              sx={{ mr: 2 }}
+              sx={{
+                mr: { xs: 0, sm: 2 },
+                width: { xs: "100%", sm: "auto" },
+                order: { xs: 3, sm: 1 },
+              }}
             >
               <Autocomplete
                 freeSolo
@@ -279,6 +281,10 @@ export default function App() {
                 }}
                 onInputChange={(_, newInputValue) => {
                   setNewItemName(newInputValue);
+                }}
+                sx={{
+                  width: { xs: "100%", sm: 200 },
+                  minWidth: { xs: "auto", sm: 200 },
                 }}
                 renderInput={(params) => (
                   <TextField
@@ -291,7 +297,6 @@ export default function App() {
                       }
                     }}
                     sx={{
-                      width: 200,
                       "& .MuiOutlinedInput-root": {
                         bgcolor: "rgba(255, 255, 255, 0.1)",
                         "&:hover": {
@@ -328,7 +333,15 @@ export default function App() {
             </Stack>
           )}
 
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={{
+              order: { xs: 2, sm: 2 },
+              flexWrap: "wrap",
+            }}
+          >
             {activeTab === "inventory" && (
               <Button
                 onClick={toggleDateDisplay}
@@ -336,7 +349,7 @@ export default function App() {
                 size="small"
                 startIcon={<CalendarTodayIcon />}
                 sx={{
-                  minWidth: 120,
+                  minWidth: { xs: "auto", sm: 120 },
                   fontSize: "0.75rem",
                   fontWeight: 600,
                 }}
@@ -373,7 +386,7 @@ export default function App() {
         >
           <Tab label="Lådor" value="inventory" />
           <Tab label="Inköpslista" value="shopping" />
-          <Tab label="Familj" value="family" />
+          <Tab label="Synkronisering" value="family" />
         </Tabs>
       </AppBar>
 
@@ -470,6 +483,9 @@ export default function App() {
                     item={activeItem}
                     onEdit={() => {}}
                     onDelete={() => {}}
+                    onDeleteAndAddToShoppingList={() => {}}
+                    onIncreaseQuantity={() => {}}
+                    onDecreaseQuantity={() => {}}
                     isDragging={true}
                     dateDisplayMode={dateDisplayMode}
                     getDurationText={getDurationText}
@@ -513,11 +529,7 @@ export default function App() {
             getSuggestions={getSuggestions}
           />
         ) : (
-          <FamilyManager
-            currentFamily={currentFamily}
-            onFamilyChange={setCurrentFamily}
-            onSignOut={signOutFromGoogle}
-          />
+          <SupabaseManager />
         )}
       </Container>
 
