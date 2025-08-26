@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Frysen</string>
+    <string name="title_activity_main">Frysen</string>
+    <string name="package_name">com.jonth.frysen</string>
+    <string name="custom_url_scheme">com.jonth.frysen</string>
+</resources>
