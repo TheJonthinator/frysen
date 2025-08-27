@@ -39,24 +39,118 @@ export class SupabaseSync {
   private deviceId: string;
 
   constructor() {
-    this.familyId = localStorage.getItem('frysen_family_id');
+    // Load family ID with fallback to backup storage
+    this.familyId = this.loadFamilyId();
     
     // Generate a unique device ID
     this.deviceId = localStorage.getItem('frysen_device_id') || 
       `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     localStorage.setItem('frysen_device_id', this.deviceId);
     
-    // Start real-time sync if we have a family ID
+    // Validate and start real-time sync if we have a family ID
     if (this.familyId) {
+      console.log('🏠 [PERSISTENCE] Family ID loaded from storage:', this.familyId);
+      // Validate the family ID asynchronously
+      this.validateAndStartSync();
+    } else {
+      console.log('🏠 [PERSISTENCE] No family ID found in storage');
+    }
+  }
+
+  // Validate family ID and start sync if valid
+  private async validateAndStartSync() {
+    if (!this.familyId) return;
+    
+    const isValid = await this.validateFamilyId(this.familyId);
+    if (isValid) {
+      console.log('🏠 [PERSISTENCE] Family ID is valid, starting real-time sync');
       setTimeout(() => {
         this.startRealtimeSync();
       }, 0);
+    } else {
+      console.log('🏠 [PERSISTENCE] Family ID is invalid, clearing from storage');
+      this.clearFamilyId();
+      this.familyId = null;
+    }
+  }
+
+  // Enhanced family ID loading with backup storage
+  private loadFamilyId(): string | null {
+    try {
+      // Primary storage
+      const primaryId = localStorage.getItem('frysen_family_id');
+      if (primaryId && primaryId.trim()) {
+        return primaryId.trim();
+      }
+
+      // Backup storage (in case primary was cleared)
+      const backupId = localStorage.getItem('frysen_family_id_backup');
+      if (backupId && backupId.trim()) {
+        console.log('🏠 [PERSISTENCE] Restored family ID from backup storage');
+        // Restore to primary storage
+        localStorage.setItem('frysen_family_id', backupId.trim());
+        return backupId.trim();
+      }
+
+      return null;
+    } catch (error) {
+      console.error('🏠 [PERSISTENCE] Error loading family ID:', error);
+      return null;
+    }
+  }
+
+  // Enhanced family ID saving with backup
+  private saveFamilyId(familyId: string): void {
+    try {
+      // Primary storage
+      localStorage.setItem('frysen_family_id', familyId);
+      
+      // Backup storage for extra safety
+      localStorage.setItem('frysen_family_id_backup', familyId);
+      
+      console.log('🏠 [PERSISTENCE] Family ID saved to primary and backup storage');
+    } catch (error) {
+      console.error('🏠 [PERSISTENCE] Error saving family ID:', error);
+    }
+  }
+
+  // Enhanced family ID clearing
+  private clearFamilyId(): void {
+    try {
+      localStorage.removeItem('frysen_family_id');
+      localStorage.removeItem('frysen_family_id_backup');
+      console.log('🏠 [PERSISTENCE] Family ID cleared from all storage');
+    } catch (error) {
+      console.error('🏠 [PERSISTENCE] Error clearing family ID:', error);
+    }
+  }
+
+  // Validate that the stored family ID is still valid
+  async validateFamilyId(familyId: string): Promise<boolean> {
+    try {
+      console.log('🏠 [PERSISTENCE] Validating family ID:', familyId);
+      const { data, error } = await supabase
+        .from('frysen_families')
+        .select('family_id')
+        .eq('family_id', familyId)
+        .single();
+
+      if (error || !data) {
+        console.log('🏠 [PERSISTENCE] Family ID validation failed - family not found');
+        return false;
+      }
+
+      console.log('🏠 [PERSISTENCE] Family ID validation successful');
+      return true;
+    } catch (error) {
+      console.error('🏠 [PERSISTENCE] Error validating family ID:', error);
+      return false;
     }
   }
 
   async setFamilyId(familyId: string) {
     this.familyId = familyId;
-    localStorage.setItem('frysen_family_id', familyId);
+    this.saveFamilyId(familyId);
     await this.startRealtimeSync();
   }
 
@@ -388,10 +482,26 @@ export class SupabaseSync {
     };
   }
 
+  // Get detailed persistence status for debugging
+  getPersistenceStatus() {
+    const primaryId = localStorage.getItem('frysen_family_id');
+    const backupId = localStorage.getItem('frysen_family_id_backup');
+    
+    return {
+      currentFamilyId: this.familyId,
+      primaryStorage: primaryId,
+      backupStorage: backupId,
+      hasPrimary: !!primaryId,
+      hasBackup: !!backupId,
+      isConsistent: primaryId === backupId,
+      deviceId: this.deviceId
+    };
+  }
+
   clearSync() {
     this.stopRealtimeSync();
     this.familyId = null;
-    localStorage.removeItem('frysen_family_id');
+    this.clearFamilyId(); // Clear both primary and backup
     this.lastSyncTime = null;
   }
 }
