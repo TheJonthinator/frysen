@@ -151,7 +151,11 @@ export default function App() {
   const handleAddItem = async () => {
     const trimmedName = newItemName.trim();
     if (trimmedName) {
-      await addItem(KOKSBANKEN_DRAWER, trimmedName);
+      if (activeTab === "inventory") {
+        await addItem(KOKSBANKEN_DRAWER, trimmedName);
+      } else if (activeTab === "shopping") {
+        addShoppingItem(trimmedName);
+      }
       setNewItemName("");
     }
   };
@@ -342,77 +346,79 @@ export default function App() {
             FRYSEN
           </Typography>
 
-          {activeTab === "inventory" && (
-            <Stack
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              sx={{
-                mr: { xs: 0, sm: 2 },
-                width: { xs: "100%", sm: "auto" },
-                order: { xs: 3, sm: 1 },
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={{
+              mr: { xs: 0, sm: 2 },
+              width: { xs: "100%", sm: "auto" },
+              order: { xs: 3, sm: 1 },
+            }}
+          >
+            <Autocomplete
+              freeSolo
+              options={getSuggestions(newItemName)}
+              value={newItemName}
+              onChange={(_, newValue) => {
+                setNewItemName(newValue || "");
               }}
+              onInputChange={(_, newInputValue) => {
+                setNewItemName(newInputValue);
+              }}
+              sx={{
+                width: { xs: "100%", sm: 200 },
+                minWidth: { xs: "auto", sm: 200 },
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder={
+                    activeTab === "inventory"
+                      ? "Lägg till vara..."
+                      : "Lägg till vara i inköpslista..."
+                  }
+                  size="small"
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") {
+                      handleAddItem();
+                    }
+                  }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      bgcolor: "rgba(255, 255, 255, 0.1)",
+                      "&:hover": {
+                        bgcolor: "rgba(255, 255, 255, 0.15)",
+                      },
+                      "&.Mui-focused": {
+                        bgcolor: "rgba(255, 255, 255, 0.2)",
+                      },
+                    },
+                    "& .MuiInputBase-input": {
+                      color: "#ffffff",
+                      "&::placeholder": {
+                        color: "rgba(255, 255, 255, 0.6)",
+                        opacity: 1,
+                      },
+                    },
+                  }}
+                />
+              )}
+              renderOption={(props, option) => (
+                <Box component="li" {...props}>
+                  <Typography variant="body2">{option}</Typography>
+                </Box>
+              )}
+            />
+            <IconButton
+              onClick={handleAddItem}
+              disabled={!newItemName.trim()}
+              color="inherit"
+              size="small"
             >
-              <Autocomplete
-                freeSolo
-                options={getSuggestions(newItemName)}
-                value={newItemName}
-                onChange={(_, newValue) => {
-                  setNewItemName(newValue || "");
-                }}
-                onInputChange={(_, newInputValue) => {
-                  setNewItemName(newInputValue);
-                }}
-                sx={{
-                  width: { xs: "100%", sm: 200 },
-                  minWidth: { xs: "auto", sm: 200 },
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="Lägg till vara..."
-                    size="small"
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") {
-                        handleAddItem();
-                      }
-                    }}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        bgcolor: "rgba(255, 255, 255, 0.1)",
-                        "&:hover": {
-                          bgcolor: "rgba(255, 255, 255, 0.15)",
-                        },
-                        "&.Mui-focused": {
-                          bgcolor: "rgba(255, 255, 255, 0.2)",
-                        },
-                      },
-                      "& .MuiInputBase-input": {
-                        color: "#ffffff",
-                        "&::placeholder": {
-                          color: "rgba(255, 255, 255, 0.6)",
-                          opacity: 1,
-                        },
-                      },
-                    }}
-                  />
-                )}
-                renderOption={(props, option) => (
-                  <Box component="li" {...props}>
-                    <Typography variant="body2">{option}</Typography>
-                  </Box>
-                )}
-              />
-              <IconButton
-                onClick={handleAddItem}
-                disabled={!newItemName.trim()}
-                color="inherit"
-                size="small"
-              >
-                <AddIcon />
-              </IconButton>
-            </Stack>
-          )}
+              <AddIcon />
+            </IconButton>
+          </Stack>
 
           <Stack
             direction="row"
@@ -637,12 +643,10 @@ export default function App() {
         ) : (
           <ShoppingList
             items={shoppingList}
-            onAddItem={addShoppingItem}
             onToggleItem={toggleShoppingItem}
             onDeleteItem={removeShoppingItem}
             onEditItem={editShoppingItem}
             onClearCompleted={clearCompletedShoppingItems}
-            getSuggestions={getSuggestions}
           />
         )}
       </Container>
