@@ -61,7 +61,7 @@ export interface AddItemFormProps {
 export interface ItemToAdd {
   id: string;
   name: string;
-}
+} 
 
 export type ShoppingItem = {
   id: string;
