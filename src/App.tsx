@@ -91,7 +91,9 @@ export default function App() {
   const deleteDrawerFromContainer = useStore(
     (state) => state.deleteDrawerFromContainer
   );
-  const refetchFromLegacy = useStore((state) => state.refetchFromLegacy);
+  const reorderDrawersInContainer = useStore(
+    (state) => state.reorderDrawersInContainer
+  );
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -406,29 +408,31 @@ export default function App() {
         };
 
         // Convert dates in containers
-        const processedContainers = Object.fromEntries(
-          Object.entries(modularData.containers || {}).map(
-            ([containerId, container]: [string, any]) => [
-              containerId,
-              {
-                ...container,
-                drawers: Object.fromEntries(
-                  Object.entries(container.drawers || {}).map(
-                    ([drawerId, drawer]: [string, any]) => [
-                      drawerId,
-                      {
-                        ...drawer,
-                        items: (drawer.items || []).map((item: any) => ({
-                          ...item,
-                          addedDate: new Date(item.addedDate),
-                        })),
-                      },
-                    ]
-                  )
-                ),
-              },
-            ]
-          )
+        const processedContainers: Record<string, any> = {};
+        Object.entries(modularData.containers || {}).forEach(
+          ([containerId, container]: [string, any]) => {
+            // Preserve drawer order by using the same approach as reorderDrawersInContainer
+            const drawerIds = Object.keys(container.drawers || {});
+            const orderedDrawers: Record<string, any> = {};
+
+            drawerIds.forEach((drawerId) => {
+              const drawer = container.drawers[drawerId];
+              if (drawer) {
+                orderedDrawers[drawerId] = {
+                  ...drawer,
+                  items: (drawer.items || []).map((item: any) => ({
+                    ...item,
+                    addedDate: new Date(item.addedDate),
+                  })),
+                };
+              }
+            });
+
+            processedContainers[containerId] = {
+              ...container,
+              drawers: orderedDrawers,
+            };
+          }
         );
 
         // Update the store with modular data
@@ -440,6 +444,9 @@ export default function App() {
             addedDate: new Date(item.addedDate),
           })),
         });
+
+        // Save the updated data to localForage
+        await useStore.getState().save();
 
         console.log("✅ [APP] Modular data update processed successfully");
         return;
@@ -894,26 +901,7 @@ export default function App() {
               }}
               fullWidth
             >
-              Test Modular Containers
-            </Button>
-
-            <Button
-              variant="outlined"
-              startIcon={<RestartAltIcon />}
-              onClick={async () => {
-                if (
-                  confirm(
-                    "Är du säker på att du vill hämta data från legacy format? Detta kommer att återställa dina lådor från backup."
-                  )
-                ) {
-                  await refetchFromLegacy();
-                  setSettingsOpen(false);
-                }
-              }}
-              fullWidth
-              color="info"
-            >
-              Hämta från Legacy Data
+              Hantera Lådor & Behållare
             </Button>
           </Stack>
         </DialogContent>
@@ -953,6 +941,7 @@ export default function App() {
             onAddDrawer={addDrawerToContainer}
             onUpdateDrawer={updateDrawerInContainer}
             onDeleteDrawer={deleteDrawerFromContainer}
+            onReorderDrawers={reorderDrawersInContainer}
           />
         </DialogContent>
         <DialogActions>

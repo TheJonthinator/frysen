@@ -196,31 +196,37 @@ export const ModularDrawerView: React.FC<ModularDrawerViewProps> = React.memo(
                         pb: { xs: 0.5, sm: 1 },
                       }}
                     >
-                      {Object.values(container.drawers).map((drawer) => (
-                        <DroppableDrawer
-                          key={drawer.id}
-                          drawerNumber={drawer.id}
-                          displayName={drawer.name}
-                          items={drawer.items}
-                          onEdit={(_, idx, updates) =>
-                            onEdit(drawer.id, idx, updates)
-                          }
-                          onDelete={(_, idx) => onDelete(drawer.id, idx)}
-                          onDeleteAndAddToShoppingList={(_, idx) =>
-                            onDeleteAndAddToShoppingList(drawer.id, idx)
-                          }
-                          onIncreaseQuantity={(_, idx) =>
-                            onIncreaseQuantity(drawer.id, idx)
-                          }
-                          onDecreaseQuantity={(_, idx) =>
-                            onDecreaseQuantity(drawer.id, idx)
-                          }
-                          selectedItems={selectedItems}
-                          onItemSelect={onItemSelect}
-                          dateDisplayMode={dateDisplayMode}
-                          getDurationText={getDurationText}
-                        />
-                      ))}
+                      {(
+                        container.drawerOrder || Object.keys(container.drawers)
+                      ).map((drawerId) => {
+                        const drawer = container.drawers[drawerId];
+                        if (!drawer) return null;
+                        return (
+                          <DroppableDrawer
+                            key={drawer.id}
+                            drawerNumber={drawer.id}
+                            displayName={drawer.name}
+                            items={drawer.items}
+                            onEdit={(_, idx, updates) =>
+                              onEdit(drawer.id, idx, updates)
+                            }
+                            onDelete={(_, idx) => onDelete(drawer.id, idx)}
+                            onDeleteAndAddToShoppingList={(_, idx) =>
+                              onDeleteAndAddToShoppingList(drawer.id, idx)
+                            }
+                            onIncreaseQuantity={(_, idx) =>
+                              onIncreaseQuantity(drawer.id, idx)
+                            }
+                            onDecreaseQuantity={(_, idx) =>
+                              onDecreaseQuantity(drawer.id, idx)
+                            }
+                            selectedItems={selectedItems}
+                            onItemSelect={onItemSelect}
+                            dateDisplayMode={dateDisplayMode}
+                            getDurationText={getDurationText}
+                          />
+                        );
+                      })}
                     </Box>
                   </Collapse>
                 </CardContent>

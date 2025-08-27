@@ -23,7 +23,78 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import type { Container, ContainerDrawer } from "../types";
+
+// Drawer item component with up/down arrows
+const DrawerItem: React.FC<{
+  drawer: ContainerDrawer;
+  containerId: string;
+  index: number;
+  totalDrawers: number;
+  onEdit: (containerId: string, drawerId: string) => void;
+  onDelete: (containerId: string, drawerId: string) => void;
+  onMoveUp: (containerId: string, drawerId: string) => void;
+  onMoveDown: (containerId: string, drawerId: string) => void;
+}> = ({
+  drawer,
+  containerId,
+  index,
+  totalDrawers,
+  onEdit,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+}) => {
+  return (
+    <ListItem sx={{ px: 0 }}>
+      <ListItemText
+        primary={drawer.name}
+        secondary={`${drawer.items.length} items`}
+      />
+      <ListItemSecondaryAction>
+        <Stack direction="row" spacing={0.5}>
+          <IconButton
+            size="small"
+            disabled={index === 0}
+            onClick={() => onMoveUp(containerId, drawer.id)}
+            title="Move up"
+          >
+            <KeyboardArrowUpIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            disabled={index === totalDrawers - 1}
+            onClick={() => onMoveDown(containerId, drawer.id)}
+            title="Move down"
+          >
+            <KeyboardArrowDownIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            onClick={() => onEdit(containerId, drawer.id)}
+          >
+            <EditIcon />
+          </IconButton>
+          <IconButton
+            size="small"
+            color="error"
+            disabled={drawer.items.length > 0}
+            onClick={() => onDelete(containerId, drawer.id)}
+            title={
+              drawer.items.length > 0
+                ? "Cannot delete drawer with items"
+                : "Delete drawer"
+            }
+          >
+            <DeleteIcon />
+          </IconButton>
+        </Stack>
+      </ListItemSecondaryAction>
+    </ListItem>
+  );
+};
 
 interface ContainerManagerProps {
   containers: Record<string, Container>;
@@ -40,6 +111,7 @@ interface ContainerManagerProps {
     updates: Partial<ContainerDrawer>
   ) => void;
   onDeleteDrawer: (containerId: string, drawerId: string) => void;
+  onReorderDrawers: (containerId: string, drawerIds: string[]) => void;
 }
 
 export const ContainerManager: React.FC<ContainerManagerProps> = ({
@@ -50,6 +122,7 @@ export const ContainerManager: React.FC<ContainerManagerProps> = ({
   onAddDrawer,
   onUpdateDrawer,
   onDeleteDrawer,
+  onReorderDrawers,
 }) => {
   const [expandedContainers, setExpandedContainers] = useState<Set<string>>(
     new Set()
@@ -70,6 +143,44 @@ export const ContainerManager: React.FC<ContainerManagerProps> = ({
   const [editContainerTitle, setEditContainerTitle] = useState("");
   const [editDrawerName, setEditDrawerName] = useState("");
 
+  const handleMoveUp = (containerId: string, drawerId: string) => {
+    const container = containers[containerId];
+    if (!container) return;
+
+    const drawerIds = Object.keys(container.drawers);
+    const currentIndex = drawerIds.indexOf(drawerId);
+
+    if (currentIndex > 0) {
+      const newDrawerIds = [...drawerIds];
+      // Swap with the drawer above
+      [newDrawerIds[currentIndex], newDrawerIds[currentIndex - 1]] = [
+        newDrawerIds[currentIndex - 1],
+        newDrawerIds[currentIndex],
+      ];
+
+      onReorderDrawers(containerId, newDrawerIds);
+    }
+  };
+
+  const handleMoveDown = (containerId: string, drawerId: string) => {
+    const container = containers[containerId];
+    if (!container) return;
+
+    const drawerIds = Object.keys(container.drawers);
+    const currentIndex = drawerIds.indexOf(drawerId);
+
+    if (currentIndex < drawerIds.length - 1) {
+      const newDrawerIds = [...drawerIds];
+      // Swap with the drawer below
+      [newDrawerIds[currentIndex], newDrawerIds[currentIndex + 1]] = [
+        newDrawerIds[currentIndex + 1],
+        newDrawerIds[currentIndex],
+      ];
+
+      onReorderDrawers(containerId, newDrawerIds);
+    }
+  };
+
   const toggleContainerExpansion = (containerId: string) => {
     const newExpanded = new Set(expandedContainers);
     if (newExpanded.has(containerId)) {
@@ -85,6 +196,7 @@ export const ContainerManager: React.FC<ContainerManagerProps> = ({
       const newContainer: Omit<Container, "id"> = {
         title: newContainerTitle.trim(),
         drawers: {},
+        drawerOrder: [], // Initialize with empty array
         order: Object.keys(containers).length,
       };
       onAddContainer(newContainer);
@@ -257,41 +369,23 @@ export const ContainerManager: React.FC<ContainerManagerProps> = ({
                       </Typography>
                     ) : (
                       <List dense>
-                        {Object.values(container.drawers).map((drawer) => (
-                          <ListItem key={drawer.id} sx={{ px: 0 }}>
-                            <ListItemText
-                              primary={drawer.name}
-                              secondary={`${drawer.items.length} items`}
+                        {Object.values(container.drawers).map(
+                          (drawer, index) => (
+                            <DrawerItem
+                              key={drawer.id}
+                              drawer={drawer}
+                              containerId={container.id}
+                              index={index}
+                              totalDrawers={
+                                Object.keys(container.drawers).length
+                              }
+                              onEdit={handleEditDrawer}
+                              onDelete={onDeleteDrawer}
+                              onMoveUp={handleMoveUp}
+                              onMoveDown={handleMoveDown}
                             />
-                            <ListItemSecondaryAction>
-                              <Stack direction="row" spacing={0.5}>
-                                <IconButton
-                                  size="small"
-                                  onClick={() =>
-                                    handleEditDrawer(container.id, drawer.id)
-                                  }
-                                >
-                                  <EditIcon />
-                                </IconButton>
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  disabled={drawer.items.length > 0}
-                                  onClick={() =>
-                                    onDeleteDrawer(container.id, drawer.id)
-                                  }
-                                  title={
-                                    drawer.items.length > 0
-                                      ? "Cannot delete drawer with items"
-                                      : "Delete drawer"
-                                  }
-                                >
-                                  <DeleteIcon />
-                                </IconButton>
-                              </Stack>
-                            </ListItemSecondaryAction>
-                          </ListItem>
-                        ))}
+                          )
+                        )}
                       </List>
                     )}
                   </Box>

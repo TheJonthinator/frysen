@@ -70,6 +70,7 @@ type State = {
   addDrawerToContainer: (containerId: string, drawer: Omit<ContainerType["drawers"][string], "id">) => Promise<void>;
   updateDrawerInContainer: (containerId: string, drawerId: string, updates: Partial<ContainerType["drawers"][string]>) => Promise<void>;
   deleteDrawerFromContainer: (containerId: string, drawerId: string) => Promise<void>;
+  reorderDrawersInContainer: (containerId: string, drawerIds: string[]) => Promise<void>;
   
   // Common methods
   toggleDateDisplay: () => Promise<void>;
@@ -183,6 +184,8 @@ export const useStore = create<State>((set, get) => ({
     let data = await localforage.getItem<AppData>(KEY);
     console.log("🔄 [STORE] Data from new key:", data);
     
+
+    
     // If no data found with new key, try old keys
     if (!data) {
       console.log("🔄 [STORE] No data found with new key, trying old keys...");
@@ -217,6 +220,27 @@ export const useStore = create<State>((set, get) => ({
       console.log("🔄 [STORE] schemaVersion value:", data.schemaVersion);
       console.log("🔄 [STORE] CURRENT_SCHEMA_VERSION:", CURRENT_SCHEMA_VERSION);
       
+      // Helper function to preserve drawer order
+      const preserveDrawerOrder = (containers: Record<string, ContainerType>) => {
+        const orderedContainers: Record<string, ContainerType> = {};
+        Object.entries(containers).forEach(([containerId, container]) => {
+          const drawerIds = Object.keys(container.drawers);
+          const orderedDrawers: Record<string, any> = {};
+          
+          drawerIds.forEach(drawerId => {
+            if (container.drawers[drawerId]) {
+              orderedDrawers[drawerId] = container.drawers[drawerId];
+            }
+          });
+          
+          orderedContainers[containerId] = {
+            ...container,
+            drawers: orderedDrawers,
+          };
+        });
+        return orderedContainers;
+      };
+      
       // TEMPORARY: Force re-migration if containers are empty
       if (Object.keys(data.containers).length === 0) {
         console.log("🔄 [STORE] Found empty containers, forcing re-migration...");
@@ -227,7 +251,7 @@ export const useStore = create<State>((set, get) => ({
         set({ 
           drawers: empty(), // Keep legacy drawers empty for backward compatibility
           defaultDrawer: data.defaultDrawer,
-          containers: data.containers,
+          containers: preserveDrawerOrder(data.containers),
           dateDisplayMode: dateDisplay || 'date',
           itemHistory: history || [],
           shoppingList: data.shoppingList || shoppingList || []
@@ -277,25 +301,26 @@ export const useStore = create<State>((set, get) => ({
       const containers: Record<string, ContainerType> = {};
       let containerOrder = 0;
       
-      // Convert remaining drawers to a "Frys" container
-      const frysDrawers: Record<string, any> = {};
-      Object.entries(normalizedDrawers).forEach(([drawerKey, items]) => {
-        const drawerNum = parseInt(drawerKey);
-        if (drawerNum !== 1 && items.length > 0) { // Skip drawer 1 (now default)
-          const drawerId = `drawer-${drawerNum.toString().padStart(3, '0')}`;
-          frysDrawers[drawerId] = {
-            id: drawerId,
-            name: drawerNum === 2 ? "Fack 1" : drawerNum === 3 ? "Fack 2" : `Låda ${drawerNum - 1}`,
-            items,
-          };
-        }
-      });
+              // Convert remaining drawers to a "Frys" container
+        const frysDrawers: Record<string, any> = {};
+        Object.entries(normalizedDrawers).forEach(([drawerKey, items]) => {
+          const drawerNum = parseInt(drawerKey);
+          if (drawerNum !== 1 && items.length > 0) { // Skip drawer 1 (now default)
+            const drawerId = `drawer-${drawerNum.toString().padStart(3, '0')}`;
+            frysDrawers[drawerId] = {
+              id: drawerId,
+              name: drawerNum === 2 ? "Fack 1" : drawerNum === 3 ? "Fack 2" : `Låda ${drawerNum - 1}`,
+              items,
+            };
+          }
+        });
       
       if (Object.keys(frysDrawers).length > 0) {
         containers["frys"] = {
           id: "frys",
           title: "Frys",
           drawers: frysDrawers,
+          drawerOrder: Object.keys(frysDrawers), // Initialize with current order
           order: containerOrder++,
         };
       }
@@ -717,6 +742,7 @@ export const useStore = create<State>((set, get) => ({
             id: "frys",
             title: "Frys",
             drawers: frysDrawers,
+            drawerOrder: Object.keys(frysDrawers), // Initialize with current order
             order: containerOrder++,
           };
         }
@@ -802,6 +828,7 @@ export const useStore = create<State>((set, get) => ({
             id: "frys",
             title: "Frys",
             drawers: frysDrawers,
+            drawerOrder: Object.keys(frysDrawers), // Initialize with current order
             order: containerOrder++,
           };
         }
@@ -1152,6 +1179,7 @@ export const useStore = create<State>((set, get) => ({
           ...container.drawers,
           [newDrawerId]: newDrawer,
         },
+        drawerOrder: [...(container.drawerOrder || []), newDrawerId], // Add to order array
       },
     };
     set({ containers: newContainers });
@@ -1187,5 +1215,31 @@ export const useStore = create<State>((set, get) => ({
     };
     set({ containers: newContainers });
     await get().save();
+  },
+  
+  reorderDrawersInContainer: async (containerId: string, drawerIds: string[]) => {
+    const state = get();
+    const container = state.containers[containerId];
+    if (!container) return;
+    
+    // Create new drawers object with the specified order
+    const reorderedDrawers: Record<string, ContainerType["drawers"][string]> = {};
+    drawerIds.forEach(drawerId => {
+      if (container.drawers[drawerId]) {
+        reorderedDrawers[drawerId] = container.drawers[drawerId];
+      }
+    });
+    
+    const newContainers = {
+      ...state.containers,
+      [containerId]: {
+        ...container,
+        drawers: reorderedDrawers,
+        drawerOrder: drawerIds, // Store the order explicitly
+      },
+    };
+    set({ containers: newContainers });
+    await get().save();
+    get().syncModularDataToSupabase();
   },
 }));

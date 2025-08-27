@@ -117,6 +117,7 @@ export interface Container {
   id: string;
   title: string;
   drawers: Record<string, ContainerDrawer>;
+  drawerOrder: string[]; // Array of drawer IDs in the correct order
   order: number; // For sorting containers
 }
 
