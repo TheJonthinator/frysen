@@ -17,14 +17,15 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { sv } from "date-fns/locale";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
+
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import type { ItemCardProps } from "../types";
 
-const formatDate = (date: Date) => {
-  return date.toLocaleDateString("sv-SE");
+const formatDate = (date: Date | string) => {
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  return dateObj.toLocaleDateString("sv-SE");
 };
 
 export const ItemCard: React.FC<ItemCardProps> = ({
@@ -70,53 +71,48 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           background: isSelected
             ? "linear-gradient(180deg, rgba(57, 160, 237, 0.25) 0%, rgba(57, 160, 237, 0.15) 100%)"
             : "linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)",
-          p: 0.8,
+          p: { xs: 0.6, sm: 0.8 },
           borderRadius: 8,
           border: "1px solid",
           borderColor: isSelected ? "primary.main" : "rgba(255, 255, 255, 0.1)",
           cursor: "pointer",
           ...(isDragging && { backdropFilter: "blur(10px)" }), // Only apply blur when dragging
           "&:hover": {
-            background:
-              "linear-gradient(180deg, rgba(57, 160, 237, 0.15) 0%, rgba(57, 160, 237, 0.05) 100%)",
-            borderColor: "primary.main",
-            boxShadow: "0 4px 16px rgba(57, 160, 237, 0.3)",
+            background: isSelected
+              ? "linear-gradient(180deg, rgba(57, 160, 237, 0.3) 0%, rgba(57, 160, 237, 0.2) 100%)"
+              : "linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%)",
+            borderColor: isSelected
+              ? "primary.main"
+              : "rgba(255, 255, 255, 0.15)",
+            transform: "translateY(-1px)",
+            transition: "all 0.2s ease",
           },
         }}
         onClick={onSelect}
         onDoubleClick={() => setEditDialogOpen(true)}
       >
-        <DragIndicatorIcon
-          fontSize="small"
-          color="action"
-          sx={{ fontSize: "0.875rem", cursor: "grab" }}
-        />
-
         <Box flex={1} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <EditIcon
-            fontSize="small"
-            color="primary"
-            sx={{ fontSize: "0.875rem" }}
-          />
           <Box flex={1}>
             <Typography
               variant="body2"
               fontWeight="medium"
-              sx={{ fontSize: "0.875rem" }}
+              sx={{ fontSize: { xs: "0.670rem", sm: "0.875rem" }, pl: 0.5 }}
             >
               {item.name}
             </Typography>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ fontSize: "0.75rem" }}
-            >
-              {displayDate}
-            </Typography>
           </Box>
 
+          {/* Date */}
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontSize: { xs: "0.65rem", sm: "0.75rem" }, ml: 0.5 }}
+          >
+            {displayDate}
+          </Typography>
+
           {/* Quantity Controls */}
-          <Stack direction="row" alignItems="center" spacing={0.5}>
+          <Stack direction="row" alignItems="center" spacing={0.1}>
             <IconButton
               size="small"
               onClick={(e) => {
@@ -124,7 +120,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 onDecreaseQuantity();
               }}
               disabled={item.quantity <= 1}
-              sx={{ p: 0.25, minWidth: 24, height: 24 }}
+              sx={{ p: 0.25, minWidth: 10, height: 24 }}
             >
               <RemoveIcon fontSize="small" sx={{ fontSize: "0.75rem" }} />
             </IconButton>
@@ -132,7 +128,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             <Typography
               variant="body2"
               sx={{
-                fontSize: "0.875rem",
+                fontSize: { xs: "0.75rem", sm: "0.875rem" },
                 fontWeight: "bold",
                 minWidth: 20,
                 textAlign: "center",
@@ -147,7 +143,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 e.stopPropagation();
                 onIncreaseQuantity();
               }}
-              sx={{ p: 0.25, minWidth: 24, height: 24 }}
+              sx={{ p: 0.25, minWidth: 10, height: 24 }}
             >
               <AddIcon fontSize="small" sx={{ fontSize: "0.75rem" }} />
             </IconButton>
@@ -162,7 +158,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           }}
           sx={{ p: 0.5 }}
         >
-          <EditIcon fontSize="small" sx={{ fontSize: "0.875rem" }} />
+          <EditIcon
+            fontSize="small"
+            sx={{ fontSize: { xs: "0.75rem", sm: "0.875rem" } }}
+          />
         </IconButton>
 
         <IconButton
@@ -176,7 +175,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           <DeleteIcon
             color="error"
             fontSize="small"
-            sx={{ fontSize: "0.875rem" }}
+            sx={{ fontSize: { xs: "0.75rem", sm: "0.875rem" } }}
           />
         </IconButton>
       </Stack>

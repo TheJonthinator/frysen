@@ -2,12 +2,14 @@ import { createClient } from '@supabase/supabase-js';
 import type { DrawerMap, ShoppingItem } from '../types';
 
 interface SyncData {
-  drawers: DrawerMap;
+  drawers?: DrawerMap; // Legacy format or modular JSON structure
   shoppingList: ShoppingItem[];
   lastUpdated: string;
   version: string;
   familyId?: string;
   device_id?: string;
+  // Modular format - stored in drawers as JSON
+  schemaVersion?: string;
 }
 
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID || '';
@@ -246,21 +248,23 @@ export class SupabaseSync {
             last_updated: (payload.new as any)?.last_updated
           });
           
-          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-            const r = payload.new;
-            const syncData: SyncData = {
-              drawers: r.drawers ?? {},
-              shoppingList: r.shopping_list ?? [],
-              lastUpdated: r.last_updated ?? new Date().toISOString(),
-              version: r.version ?? '1.0.0',
-              familyId: this.familyId!,
-              device_id: r.device_id
-            };
-            
-            console.log('📡 [REMOTE] Notifying observers of remote update from device:', r.device_id);
-            this.lastSyncTime = new Date();
-            this.notifyObservers(syncData);
-          }
+                     if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+             const r = payload.new;
+                           const syncData: SyncData = {
+                drawers: r.drawers ?? {},
+                shoppingList: r.shopping_list ?? [],
+                lastUpdated: r.last_updated ?? new Date().toISOString(),
+                version: r.version ?? '1.0.0',
+                familyId: this.familyId!,
+                device_id: r.device_id,
+                // Modular format - stored in drawers as JSON
+                schemaVersion: r.schema_version
+              };
+             
+             console.log('📡 [REMOTE] Notifying observers of remote update from device:', r.device_id);
+             this.lastSyncTime = new Date();
+             this.notifyObservers(syncData);
+           }
         }
       )
       .subscribe((status) => {
@@ -344,14 +348,14 @@ export class SupabaseSync {
 
       this.lastSyncTime = new Date();
       
-      return {
-        drawers: data.drawers || {},
-        shoppingList: data.shopping_list || [],
-        lastUpdated: data.last_updated || new Date().toISOString(),
-        version: data.version || '1.0.0',
-        familyId: this.familyId,
-        device_id: data.device_id
-      };
+             return {
+         drawers: data.drawers || {},
+         shoppingList: data.shopping_list || [],
+         lastUpdated: data.last_updated || new Date().toISOString(),
+         version: data.version || '1.0.0',
+         familyId: this.familyId,
+         device_id: data.device_id
+       };
     } catch (error) {
       console.error('❌ [LOCAL] Read failed:', error);
       return null;
@@ -365,14 +369,14 @@ export class SupabaseSync {
       this.isSyncing = true;
       console.log('📝 [LOCAL] Writing to database...');
 
-      const syncData = {
-        family_id: this.familyId,
-        drawers: data.drawers,
-        shopping_list: data.shoppingList,
-        last_updated: new Date().toISOString(),
-        version: '1.0.0',
-        device_id: this.deviceId
-      };
+             const syncData = {
+         family_id: this.familyId,
+         drawers: data.drawers, // This will contain the full modular structure as JSON
+         shopping_list: data.shoppingList,
+         last_updated: new Date().toISOString(),
+         version: '1.0.0',
+         device_id: this.deviceId
+       };
 
       const { data: row, error } = await supabase
         .from('frysen_data')
@@ -387,16 +391,18 @@ export class SupabaseSync {
         last_updated: row?.last_updated
       });
 
-      // Notify observers with the actual database data
-      console.log('📤 [LOCAL] Notifying observers of local update');
-      this.notifyObservers({
-        drawers: data.drawers,
-        shoppingList: data.shoppingList,
-        lastUpdated: row?.last_updated ?? syncData.last_updated,
-        version: '1.0.0',
-        familyId: this.familyId!,
-        device_id: row?.device_id
-      });
+                     // Notify observers with the actual database data
+        console.log('📤 [LOCAL] Notifying observers of local update');
+        this.notifyObservers({
+          drawers: data.drawers,
+          shoppingList: data.shoppingList,
+          lastUpdated: row?.last_updated ?? syncData.last_updated,
+          version: '1.0.0',
+          familyId: this.familyId!,
+          device_id: row?.device_id,
+          // Modular format - stored in drawers as JSON
+          schemaVersion: data.schemaVersion
+        });
 
       this.lastSyncTime = new Date();
       console.log('✅ [LOCAL] Write operation completed successfully');
@@ -426,16 +432,24 @@ export class SupabaseSync {
 
       console.log('✅ Family created successfully:', familyId);
 
-      // Initialize the family with empty data
-      console.log('📝 Initializing family with empty data...');
-      const { error: dataError } = await supabase
-        .from('frysen_data')
-        .insert({
-          family_id: familyId,
-          drawers: {},
-          shopping_list: [],
-          device_id: this.deviceId
-        });
+             // Initialize the family with empty modular data
+       console.log('📝 Initializing family with empty modular data...');
+       const { error: dataError } = await supabase
+         .from('frysen_data')
+         .insert({
+           family_id: familyId,
+           drawers: {
+             schemaVersion: 'v2.0.0',
+             defaultDrawer: {
+               id: "default",
+               name: "Köksbänken",
+               items: []
+             },
+             containers: {}
+           },
+           shopping_list: [],
+           device_id: this.deviceId
+         });
 
       if (dataError) {
         console.error('❌ Failed to initialize family data:', dataError);

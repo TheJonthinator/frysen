@@ -50,11 +50,6 @@ export const createAppTheme = (): ThemeOptions => ({
             borderRadius: 12,
             backdropFilter: 'blur(10px)',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-            '&:hover': {
-              borderColor: colors.celestialBlue,
-              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
-              background: `linear-gradient(180deg, ${colors.lightGray} 0%, ${colors.darkGray} 100%)`,
-            },
           },
         },
       },

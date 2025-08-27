@@ -4,4 +4,6 @@ export { DroppableDrawer } from './DroppableDrawer';
 export { AddItemForm } from './AddItemForm';
 export { ShoppingList } from './ShoppingList';
 export { UpdateIndicator } from './UpdateIndicator';
-export { SupabaseManager } from './SupabaseManager'; 
+export { SupabaseManager } from './SupabaseManager';
+export { ContainerManager } from './ContainerManager';
+export { ModularDrawerView } from './ModularDrawerView'; 

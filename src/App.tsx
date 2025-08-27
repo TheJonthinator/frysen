@@ -1,89 +1,110 @@
-import { useEffect, useMemo, useState } from "react";
-import { StatusBar, Style } from "@capacitor/status-bar";
+import { useState, useEffect, useCallback } from "react";
 import {
-  Box,
-  Container,
-  Typography,
-  Stack,
-  Card,
-  CardContent,
-  IconButton,
-  Button,
-  ThemeProvider,
-  createTheme,
-  CssBaseline,
   AppBar,
   Toolbar,
+  Typography,
+  Box,
+  Container,
+  Tabs,
+  Tab,
   TextField,
-  Autocomplete,
+  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Tabs,
-  Tab,
+  Button,
   Badge,
+  Card,
+  CardContent,
+  Stack,
+  CssBaseline,
+  Autocomplete,
 } from "@mui/material";
-
-import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
-
-import AddIcon from "@mui/icons-material/Add";
-import SettingsIcon from "@mui/icons-material/Settings";
-import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import UpdateIcon from "@mui/icons-material/Update";
-import SyncIcon from "@mui/icons-material/Sync";
-
 import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
+  Add as AddIcon,
+  Settings as SettingsIcon,
+  Sync as SyncIcon,
+  Update as UpdateIcon,
+  RestartAlt as RestartAltIcon,
+  CalendarToday as CalendarTodayIcon,
+} from "@mui/icons-material";
+import { createTheme, ThemeProvider } from "@mui/material/styles";
+import { StatusBar, Style } from "@capacitor/status-bar";
+import type { DragStartEvent, DragEndEvent } from "@dnd-kit/core";
 import { useStore } from "./store";
-import {
-  ItemCard,
-  DroppableDrawer,
-  ShoppingList,
-  UpdateIndicator,
-  SupabaseManager,
-} from "./components";
-import type { Item, TabType } from "./types";
-import { DRAWER_COUNT, KOKSBANKEN_DRAWER } from "./types";
+import { ModularDrawerView } from "./components/ModularDrawerView";
+import { ContainerManager } from "./components/ContainerManager";
+import { ShoppingList } from "./components/ShoppingList";
+import { UpdateIndicator } from "./components/UpdateIndicator";
+import { SupabaseManager } from "./components/SupabaseManager";
 import { createAppTheme } from "./theme";
+import type { Item, TabType } from "./types";
 import { supabaseSync } from "./services/supabaseSync";
 
 export default function App() {
-  const {
-    drawers,
-    dateDisplayMode,
-    shoppingList,
-    updateStatus,
-    updateInfo,
-    load,
-    addItem,
-    editItem,
-    removeItem,
-    deleteAndAddToShoppingList,
-    increaseQuantity,
-    decreaseQuantity,
-    replaceAll,
-    toggleDateDisplay,
-    moveItem,
-    getDurationText,
-    getSuggestions,
-    addShoppingItem,
-    toggleShoppingItem,
-    removeShoppingItem,
-    editShoppingItem,
-    clearCompletedShoppingItems,
-    checkForUpdates,
-  } = useStore();
+  // Selective store subscriptions to reduce re-renders
+  const defaultDrawer = useStore((state) => state.defaultDrawer);
+  const containers = useStore((state) => state.containers);
+  const dateDisplayMode = useStore((state) => state.dateDisplayMode);
+  const shoppingList = useStore((state) => state.shoppingList);
+  const updateStatus = useStore((state) => state.updateStatus);
+  const updateInfo = useStore((state) => state.updateInfo);
+
+  // Store methods (these don't cause re-renders)
+  const load = useStore((state) => state.load);
+  const toggleDateDisplay = useStore((state) => state.toggleDateDisplay);
+  const getDurationText = useStore((state) => state.getDurationText);
+  const getSuggestions = useStore((state) => state.getSuggestions);
+  const addShoppingItem = useStore((state) => state.addShoppingItem);
+  const toggleShoppingItem = useStore((state) => state.toggleShoppingItem);
+  const removeShoppingItem = useStore((state) => state.removeShoppingItem);
+  const editShoppingItem = useStore((state) => state.editShoppingItem);
+  const clearCompletedShoppingItems = useStore(
+    (state) => state.clearCompletedShoppingItems
+  );
+  const checkForUpdates = useStore((state) => state.checkForUpdates);
+  const addItemToDefaultDrawer = useStore(
+    (state) => state.addItemToDefaultDrawer
+  );
+  const editItemInDrawer = useStore((state) => state.editItemInDrawer);
+  const removeItemFromDrawer = useStore((state) => state.removeItemFromDrawer);
+  const increaseQuantityInDrawer = useStore(
+    (state) => state.increaseQuantityInDrawer
+  );
+  const decreaseQuantityInDrawer = useStore(
+    (state) => state.decreaseQuantityInDrawer
+  );
+  const deleteAndAddToShoppingListFromDrawer = useStore(
+    (state) => state.deleteAndAddToShoppingListFromDrawer
+  );
+  const moveItemBetweenDrawers = useStore(
+    (state) => state.moveItemBetweenDrawers
+  );
+  const addContainer = useStore((state) => state.addContainer);
+  const updateContainer = useStore((state) => state.updateContainer);
+  const deleteContainer = useStore((state) => state.deleteContainer);
+  const addDrawerToContainer = useStore((state) => state.addDrawerToContainer);
+  const updateDrawerInContainer = useStore(
+    (state) => state.updateDrawerInContainer
+  );
+  const deleteDrawerFromContainer = useStore(
+    (state) => state.deleteDrawerFromContainer
+  );
+  const refetchFromLegacy = useStore((state) => state.refetchFromLegacy);
+
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [activeItem, setActiveItem] = useState<Item | null>(null);
+  const [newItemName, setNewItemName] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [containerManagerOpen, setContainerManagerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("inventory");
 
   useEffect(() => {
     load();
+
     // Don't auto-check for updates on launch to avoid rate limiting
     // Users can manually check via the update indicator or settings
 
@@ -119,141 +140,239 @@ export default function App() {
     };
   }, []); // Only run once on mount
 
-  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [activeItem, setActiveItem] = useState<Item | null>(null);
-  const [newItemName, setNewItemName] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [syncOpen, setSyncOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>("inventory");
-
-  const options = useMemo(
-    () => Array.from({ length: DRAWER_COUNT }, (_, i) => i + 1),
-    []
-  );
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 3,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
-    })
-  );
+  // Use real store data instead of mock data
 
   const theme = createTheme(createAppTheme());
 
-  const handleAddItem = async () => {
+  // Memoized handlers to prevent unnecessary re-renders
+  const handleAddItem = useCallback(async () => {
     const trimmedName = newItemName.trim();
     if (trimmedName) {
       if (activeTab === "inventory") {
-        await addItem(KOKSBANKEN_DRAWER, trimmedName);
+        // Add to default drawer (köksbänken)
+        await addItemToDefaultDrawer(trimmedName);
       } else if (activeTab === "shopping") {
         addShoppingItem(trimmedName);
       }
       setNewItemName("");
     }
-  };
+  }, [newItemName, activeTab, addItemToDefaultDrawer, addShoppingItem]);
 
-  const handleItemSelect = (itemId: string) => {
-    if (isSelectionMode) {
-      const newSelected = new Set(selectedItems);
-      if (newSelected.has(itemId)) {
-        newSelected.delete(itemId);
-      } else {
-        newSelected.add(itemId);
+  const handleItemSelect = useCallback(
+    (itemId: string) => {
+      if (isSelectionMode) {
+        setSelectedItems((prev) => {
+          const newSet = new Set(prev);
+          if (newSet.has(itemId)) {
+            newSet.delete(itemId);
+          } else {
+            newSet.add(itemId);
+          }
+          return newSet;
+        });
       }
-      setSelectedItems(newSelected);
-    }
-  };
+    },
+    [isSelectionMode]
+  );
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = useCallback(async () => {
     if (selectedItems.size === 0) return;
 
     if (confirm(`Ta bort ${selectedItems.size} valda varor?`)) {
-      // Find and remove all selected items
-      const newDrawers = { ...drawers };
-      Object.keys(newDrawers).forEach((drawerKey) => {
-        const drawer = parseInt(drawerKey);
-        newDrawers[drawer] = newDrawers[drawer].filter(
+      // Find and remove all selected items from default drawer and containers
+      const newDefaultDrawer = {
+        ...defaultDrawer,
+        items: (defaultDrawer as any).items.filter(
           (item: any) => !selectedItems.has(item.id)
-        );
+        ),
+      };
+
+      const newContainers = { ...containers };
+      Object.keys(newContainers).forEach((containerId) => {
+        const container = newContainers[containerId];
+        Object.keys(container.drawers).forEach((drawerId) => {
+          container.drawers[drawerId] = {
+            ...container.drawers[drawerId],
+            items: container.drawers[drawerId].items.filter(
+              (item: any) => !selectedItems.has(item.id)
+            ),
+          };
+        });
       });
 
-      await replaceAll(newDrawers);
+      useStore.setState({
+        defaultDrawer: newDefaultDrawer,
+        containers: newContainers,
+      });
       setSelectedItems(new Set());
       setIsSelectionMode(false);
     }
-  };
+  }, [selectedItems, defaultDrawer, containers]);
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const itemId = active.id as string;
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const { active } = event;
+      const itemId = active.id as string;
 
-    // Find the item in drawers
-    for (const drawerKey of Object.keys(drawers)) {
-      const drawer = parseInt(drawerKey);
-      const item = drawers[drawer].find((item: any) => item.id === itemId);
-      if (item) {
-        setActiveItem(item);
-        break;
+      // Find the item in the store
+      let foundItem: Item | null = null;
+
+      // Check default drawer first
+      foundItem =
+        (defaultDrawer as any).items.find((item: any) => item.id === itemId) ||
+        null;
+
+      // If not found, check containers
+      if (!foundItem) {
+        for (const container of Object.values(containers as any)) {
+          for (const drawer of Object.values((container as any).drawers)) {
+            foundItem =
+              (drawer as any).items.find((item: any) => item.id === itemId) ||
+              null;
+            if (foundItem) break;
+          }
+          if (foundItem) break;
+        }
       }
-    }
-  };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveItem(null);
+      setActiveItem(foundItem);
+    },
+    [defaultDrawer, containers]
+  );
 
-    if (!over) return;
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveItem(null);
 
-    const itemId = active.id as string;
-    const targetDrawerId = over.id as string;
+      if (!over) return;
 
-    // Find source drawer and index
-    let sourceDrawer = -1;
-    let sourceIndex = -1;
-    for (const drawerKey of Object.keys(drawers)) {
-      const drawer = parseInt(drawerKey);
-      const index = drawers[drawer].findIndex(
+      const itemId = active.id as string;
+      const targetDrawerId = over.id as string;
+
+      // Find source drawer and item
+      let sourceDrawerId = "";
+      let sourceIndex = -1;
+      let sourceItem: Item | null = null;
+
+      // Check default drawer first
+      const defaultIndex = (defaultDrawer as any).items.findIndex(
         (item: any) => item.id === itemId
       );
-      if (index !== -1) {
-        sourceDrawer = drawer;
-        sourceIndex = index;
-        break;
+      if (defaultIndex !== -1) {
+        sourceDrawerId = (defaultDrawer as any).id;
+        sourceIndex = defaultIndex;
+        sourceItem = (defaultDrawer as any).items[defaultIndex];
+      } else {
+        // Check containers
+        for (const container of Object.values(containers as any)) {
+          for (const drawer of Object.values((container as any).drawers)) {
+            const index = (drawer as any).items.findIndex(
+              (item: any) => item.id === itemId
+            );
+            if (index !== -1) {
+              sourceDrawerId = (drawer as any).id;
+              sourceIndex = index;
+              sourceItem = (drawer as any).items[index];
+              break;
+            }
+          }
+          if (sourceItem) break;
+        }
       }
-    }
 
-    if (sourceDrawer === -1) return;
+      if (!sourceItem) return;
 
-    // Parse target drawer number
-    const targetDrawerMatch = targetDrawerId.match(/^drawer-(\d+)$/);
-    if (!targetDrawerMatch) return;
+      // Parse target drawer ID
+      let targetDrawerIdParsed: string;
 
-    const targetDrawer = parseInt(targetDrawerMatch[1]);
+      if (targetDrawerId === "default") {
+        // Target is the default drawer
+        targetDrawerIdParsed = "default";
+      } else {
+        // Target is a container drawer
+        const targetDrawerMatch = targetDrawerId.match(/^drawer-(.+)$/);
+        if (!targetDrawerMatch) return;
+        targetDrawerIdParsed = targetDrawerMatch[1];
+      }
 
-    // Move the item
-    await moveItem(sourceDrawer, sourceIndex, targetDrawer);
-  };
+      // Don't move if same drawer
+      if (sourceDrawerId === targetDrawerIdParsed) return;
 
-  const resetAll = () => {
+      console.log("Drag operation:", {
+        itemId,
+        sourceDrawerId,
+        targetDrawerIdParsed,
+        targetDrawerId,
+      });
+
+      // Move item between drawers using store method
+      await moveItemBetweenDrawers(
+        sourceDrawerId,
+        sourceIndex,
+        targetDrawerId // Use the full drawer ID, not the parsed one
+      );
+    },
+    [defaultDrawer, containers, moveItemBetweenDrawers]
+  );
+
+  const resetAll = useCallback(() => {
     if (confirm("Nollställa alla lådor?")) {
-      const fresh: any = {};
-      options.forEach((d) => (fresh[d] = []));
-      replaceAll(fresh);
+      // Reset to empty modular structure
+      const emptyDefaultDrawer = {
+        id: "default",
+        name: "Köksbänken",
+        items: [],
+      };
+      useStore.setState({ defaultDrawer: emptyDefaultDrawer, containers: {} });
     }
-  };
+  }, []);
 
-  const handleRealTimeUpdate = async (data: any) => {
+  // Modular Drawer View handlers - memoized
+  const handleModularEdit = useCallback(
+    async (drawerId: string, idx: number, updates: Partial<Item>) => {
+      await editItemInDrawer(drawerId, idx, updates);
+    },
+    [editItemInDrawer]
+  );
+
+  const handleModularDelete = useCallback(
+    async (drawerId: string, idx: number) => {
+      await removeItemFromDrawer(drawerId, idx);
+    },
+    [removeItemFromDrawer]
+  );
+
+  const handleModularDeleteAndAddToShoppingList = useCallback(
+    async (drawerId: string, idx: number) => {
+      await deleteAndAddToShoppingListFromDrawer(drawerId, idx);
+    },
+    [deleteAndAddToShoppingListFromDrawer]
+  );
+
+  const handleModularIncreaseQuantity = useCallback(
+    async (drawerId: string, idx: number) => {
+      await increaseQuantityInDrawer(drawerId, idx);
+    },
+    [increaseQuantityInDrawer]
+  );
+
+  const handleModularDecreaseQuantity = useCallback(
+    async (drawerId: string, idx: number) => {
+      await decreaseQuantityInDrawer(drawerId, idx);
+    },
+    [decreaseQuantityInDrawer]
+  );
+
+  const handleRealTimeUpdate = useCallback(async (data: any) => {
     console.log("📱 [APP] Processing real-time update with data:", {
       hasDrawers: !!data.drawers,
       hasShoppingList: !!data.shoppingList,
+      hasModularData: !!(
+        data.drawers &&
+        typeof data.drawers === "object" &&
+        "schemaVersion" in data.drawers
+      ),
       drawerCount: Object.keys(data.drawers || {}).length,
       shoppingListCount: (data.shoppingList || []).length,
     });
@@ -266,7 +385,68 @@ export default function App() {
     }
 
     try {
-      // Convert dates back to Date objects
+      // Check if this is modular data stored in drawers as JSON
+      if (
+        data.drawers &&
+        typeof data.drawers === "object" &&
+        "schemaVersion" in data.drawers
+      ) {
+        console.log("📱 [APP] Processing modular data update...");
+
+        // Extract modular data from drawers JSON
+        const modularData = data.drawers;
+
+        // Convert dates in default drawer
+        const processedDefaultDrawer = {
+          ...modularData.defaultDrawer,
+          items: (modularData.defaultDrawer.items || []).map((item: any) => ({
+            ...item,
+            addedDate: new Date(item.addedDate),
+          })),
+        };
+
+        // Convert dates in containers
+        const processedContainers = Object.fromEntries(
+          Object.entries(modularData.containers || {}).map(
+            ([containerId, container]: [string, any]) => [
+              containerId,
+              {
+                ...container,
+                drawers: Object.fromEntries(
+                  Object.entries(container.drawers || {}).map(
+                    ([drawerId, drawer]: [string, any]) => [
+                      drawerId,
+                      {
+                        ...drawer,
+                        items: (drawer.items || []).map((item: any) => ({
+                          ...item,
+                          addedDate: new Date(item.addedDate),
+                        })),
+                      },
+                    ]
+                  )
+                ),
+              },
+            ]
+          )
+        );
+
+        // Update the store with modular data
+        useStore.setState({
+          defaultDrawer: processedDefaultDrawer,
+          containers: processedContainers,
+          shoppingList: (data.shoppingList || []).map((item: any) => ({
+            ...item,
+            addedDate: new Date(item.addedDate),
+          })),
+        });
+
+        console.log("✅ [APP] Modular data update processed successfully");
+        return;
+      }
+
+      // Legacy data handling (fallback)
+      console.log("📱 [APP] Processing legacy data update...");
       const processedData = {
         ...data,
         drawers: Object.fromEntries(
@@ -321,11 +501,11 @@ export default function App() {
         }
       }
 
-      console.log("✅ [APP] Real-time update processed successfully");
+      console.log("✅ [APP] Legacy data update processed successfully");
     } catch (error) {
       console.error("App failed to process real-time update:", error);
     }
-  };
+  }, []);
 
   return (
     <ThemeProvider theme={theme}>
@@ -488,7 +668,9 @@ export default function App() {
                 badgeContent={
                   activeTab === "shopping"
                     ? 0
-                    : shoppingList.filter((item) => !item.completed).length
+                    : (shoppingList as any[]).filter(
+                        (item: any) => !item.completed
+                      ).length
                 }
                 color="error"
                 sx={{
@@ -512,7 +694,10 @@ export default function App() {
         </Tabs>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ py: 2 }}>
+      <Container
+        maxWidth="xl"
+        sx={{ py: { xs: 1, sm: 2 }, px: { xs: 1, sm: 2 } }}
+      >
         {activeTab === "inventory" ? (
           <>
             <Box
@@ -568,53 +753,30 @@ export default function App() {
               </Card>
             </Box>
 
-            <DndContext
-              sensors={sensors}
+            {/* Debug logging */}
+            {console.log("🔄 [APP] Rendering ModularDrawerView with:", {
+              defaultDrawer,
+              containers,
+            })}
+
+            <ModularDrawerView
+              defaultDrawer={defaultDrawer}
+              containers={containers}
+              onEdit={handleModularEdit}
+              onDelete={handleModularDelete}
+              onDeleteAndAddToShoppingList={
+                handleModularDeleteAndAddToShoppingList
+              }
+              onIncreaseQuantity={handleModularIncreaseQuantity}
+              onDecreaseQuantity={handleModularDecreaseQuantity}
+              selectedItems={selectedItems}
+              onItemSelect={handleItemSelect}
+              dateDisplayMode={dateDisplayMode}
+              getDurationText={getDurationText}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
-            >
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-                  gap: 1,
-                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                }}
-              >
-                {options.map((drawerNum) => (
-                  <DroppableDrawer
-                    key={drawerNum}
-                    drawerNumber={drawerNum}
-                    items={drawers[drawerNum] || []}
-                    onEdit={editItem}
-                    onDelete={removeItem}
-                    onDeleteAndAddToShoppingList={deleteAndAddToShoppingList}
-                    onIncreaseQuantity={increaseQuantity}
-                    onDecreaseQuantity={decreaseQuantity}
-                    selectedItems={selectedItems}
-                    onItemSelect={handleItemSelect}
-                    dateDisplayMode={dateDisplayMode}
-                    getDurationText={getDurationText}
-                  />
-                ))}
-              </Box>
-
-              <DragOverlay>
-                {activeItem ? (
-                  <ItemCard
-                    item={activeItem}
-                    onEdit={() => {}}
-                    onDelete={() => {}}
-                    onDeleteAndAddToShoppingList={() => {}}
-                    onIncreaseQuantity={() => {}}
-                    onDecreaseQuantity={() => {}}
-                    isDragging={true}
-                    dateDisplayMode={dateDisplayMode}
-                    getDurationText={getDurationText}
-                  />
-                ) : null}
-              </DragOverlay>
-            </DndContext>
+              activeItem={activeItem}
+            />
 
             <Stack
               direction="row"
@@ -722,6 +884,37 @@ export default function App() {
             >
               Nollställ alla lådor
             </Button>
+
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={() => {
+                setSettingsOpen(false);
+                setContainerManagerOpen(true);
+              }}
+              fullWidth
+            >
+              Test Modular Containers
+            </Button>
+
+            <Button
+              variant="outlined"
+              startIcon={<RestartAltIcon />}
+              onClick={async () => {
+                if (
+                  confirm(
+                    "Är du säker på att du vill hämta data från legacy format? Detta kommer att återställa dina lådor från backup."
+                  )
+                ) {
+                  await refetchFromLegacy();
+                  setSettingsOpen(false);
+                }
+              }}
+              fullWidth
+              color="info"
+            >
+              Hämta från Legacy Data
+            </Button>
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -741,6 +934,29 @@ export default function App() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSyncOpen(false)}>Stäng</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={containerManagerOpen}
+        onClose={() => setContainerManagerOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>Modular Container Manager</DialogTitle>
+        <DialogContent>
+          <ContainerManager
+            containers={containers}
+            onAddContainer={addContainer}
+            onUpdateContainer={updateContainer}
+            onDeleteContainer={deleteContainer}
+            onAddDrawer={addDrawerToContainer}
+            onUpdateDrawer={updateDrawerInContainer}
+            onDeleteDrawer={deleteDrawerFromContainer}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setContainerManagerOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </ThemeProvider>

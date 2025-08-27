@@ -41,13 +41,14 @@ export interface DraggableItemCardProps {
 }
 
 export interface DroppableDrawerProps {
-  drawerNumber: number;
+  drawerNumber: number | string;
+  displayName?: string; // Optional display name, falls back to drawerNumber if not provided
   items: Item[];
-  onEdit: (drawer: number, idx: number, updates: Partial<Item>) => void;
-  onDelete: (drawer: number, idx: number) => void;
-  onDeleteAndAddToShoppingList: (drawer: number, idx: number) => void;
-  onIncreaseQuantity: (drawer: number, idx: number) => void;
-  onDecreaseQuantity: (drawer: number, idx: number) => void;
+  onEdit: (drawer: number | string, idx: number, updates: Partial<Item>) => void;
+  onDelete: (drawer: number | string, idx: number) => void;
+  onDeleteAndAddToShoppingList: (drawer: number | string, idx: number) => void;
+  onIncreaseQuantity: (drawer: number | string, idx: number) => void;
+  onDecreaseQuantity: (drawer: number | string, idx: number) => void;
   selectedItems: Set<string>;
   onItemSelect: (itemId: string) => void;
   dateDisplayMode: DateDisplayMode;
@@ -88,5 +89,70 @@ export interface UpdateCheckResult {
   status: UpdateStatus;
   updateInfo?: UpdateInfo;
   error?: string;
+}
+
+// ============================================================================
+// MODULAR CONTAINER SYSTEM TYPES (NEW)
+// ============================================================================
+
+// Schema versioning for data migration
+export const CURRENT_SCHEMA_VERSION = "2.0.0";
+
+// Default drawer (replaces old drawer 1 - köksbänken)
+export interface DefaultDrawer {
+  id: string;
+  name: string;
+  items: Item[];
+}
+
+// Individual drawer within a container
+export interface ContainerDrawer {
+  id: string;
+  name: string;
+  items: Item[];
+}
+
+// Container that holds multiple drawers
+export interface Container {
+  id: string;
+  title: string;
+  drawers: Record<string, ContainerDrawer>;
+  order: number; // For sorting containers
+}
+
+// New modular data structure
+export interface ModularData {
+  schemaVersion: string;
+  defaultDrawer: DefaultDrawer;
+  containers: Record<string, Container>;
+  shoppingList: ShoppingItem[];
+  lastUpdated: string;
+  version: string;
+  familyId?: string;
+  device_id?: string;
+}
+
+// Legacy data structure (for backward compatibility)
+export interface LegacyData {
+  drawers: DrawerMap;
+  shoppingList: ShoppingItem[];
+  lastUpdated: string;
+  version: string;
+  familyId?: string;
+  device_id?: string;
+}
+
+// Union type for both structures
+export type AppData = ModularData | LegacyData;
+
+// Helper type guards
+export function isModularData(data: AppData): data is ModularData {
+  return 'schemaVersion' in data && data.schemaVersion === CURRENT_SCHEMA_VERSION;
+}
+
+export function isLegacyData(data: AppData): data is LegacyData {
+  // If no schemaVersion key, it's definitely legacy data
+  // If schemaVersion exists but doesn't match current version, it's also legacy
+  return !('schemaVersion' in data) || data.schemaVersion !== CURRENT_SCHEMA_VERSION;
 }
 

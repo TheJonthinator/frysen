@@ -7,6 +7,7 @@ import { KOKSBANKEN_DRAWER } from "../types";
 
 export const DroppableDrawer: React.FC<DroppableDrawerProps> = ({
   drawerNumber,
+  displayName,
   items,
   onEdit,
   onDelete,
@@ -19,10 +20,16 @@ export const DroppableDrawer: React.FC<DroppableDrawerProps> = ({
   getDurationText,
 }) => {
   const { setNodeRef, isOver } = useDroppable({
-    id: `drawer-${drawerNumber}`,
+    id: drawerNumber,
   });
 
-  const getDrawerTitle = (drawerNum: number) => {
+  const getDrawerTitle = (drawerNum: number | string) => {
+    // Use displayName if provided, otherwise fall back to legacy logic
+    if (displayName) {
+      return displayName;
+    }
+
+    // Handle legacy numeric IDs
     if (drawerNum === 1) {
       return "Köksbänken";
     } else if (drawerNum === 2) {
@@ -30,7 +37,7 @@ export const DroppableDrawer: React.FC<DroppableDrawerProps> = ({
     } else if (drawerNum === 3) {
       return "Fack 2";
     } else {
-      return `Låda ${drawerNum - 1}`;
+      return `Låda ${Number(drawerNum) - 1}`;
     }
   };
 
@@ -38,26 +45,65 @@ export const DroppableDrawer: React.FC<DroppableDrawerProps> = ({
     <Card
       ref={setNodeRef}
       sx={{
-        mb: 1,
-        border: isOver ? "2px dashed" : "1px solid",
-        borderColor: isOver ? "primary.main" : "divider",
-        bgcolor: isOver ? "action.hover" : "background.paper",
-        minHeight: drawerNumber === KOKSBANKEN_DRAWER ? 120 : 80,
+        mb: { xs: 0.5, sm: 1 },
+        border: isOver ? "2px dashed" : "none",
+        borderColor: isOver ? "primary.main" : "transparent",
+        background: isOver
+          ? "linear-gradient(145deg, rgba(57, 160, 237, 0.1), rgba(57, 160, 237, 0.05))"
+          : "linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02))",
+        minHeight:
+          items.length === 0
+            ? drawerNumber === KOKSBANKEN_DRAWER ||
+              drawerNumber === "Köksbänken"
+              ? 60
+              : 40
+            : drawerNumber === KOKSBANKEN_DRAWER ||
+              drawerNumber === "Köksbänken"
+            ? 120
+            : 80,
+        borderRadius: 3,
+        boxShadow: isOver
+          ? "inset 2px 2px 5px rgba(0, 0, 0, 0.2), inset -2px -2px 5px rgba(255, 255, 255, 0.1)"
+          : "inset 2px 2px 5px rgba(0, 0, 0, 0.2), inset -2px -2px 5px rgba(255, 255, 255, 0.1)",
+        backdropFilter: "blur(10px)",
+        // Override any Material-UI default shadows
+        "& .MuiCard-root": {
+          boxShadow: "none !important",
+        },
         "&:hover": {
-          borderColor: "primary.main",
+          boxShadow: isOver
+            ? "inset 2px 2px 5px rgba(0, 0, 0, 0.2), inset -2px -2px 5px rgba(255, 255, 255, 0.1)"
+            : "inset 2px 2px 5px rgba(0, 0, 0, 0.2), inset -2px -2px 5px rgba(255, 255, 255, 0.1)",
+          background: isOver
+            ? "linear-gradient(145deg, rgba(57, 160, 237, 0.1), rgba(57, 160, 237, 0.05))"
+            : "linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02))",
+          border: isOver ? "2px dashed" : "none",
+          borderColor: isOver ? "primary.main" : "transparent",
         },
       }}
     >
-      <CardContent sx={{ p: 1.5 }}>
+      <CardContent
+        sx={{
+          p: items.length === 0 ? { xs: 0.5, sm: 1 } : { xs: 1, sm: 1.5 },
+          pb: items.length === 0 ? { xs: 0, sm: 0 } : { xs: 0, sm: 0 },
+          "&.MuiCardContent-root": { pb: 5 },
+          "&:last-child": { pb: 1.5 },
+        }}
+      >
         <Typography
           variant="subtitle2"
           color="text.secondary"
           sx={{
-            mb: 1,
-            fontSize: "0.875rem",
-            fontWeight: drawerNumber === KOKSBANKEN_DRAWER ? "bold" : "normal",
+            mb: { xs: 0.5, sm: 1 },
+            fontSize: { xs: "0.75rem", sm: "0.875rem" },
+            fontWeight:
+              drawerNumber === KOKSBANKEN_DRAWER ||
+              drawerNumber === "Köksbänken"
+                ? "bold"
+                : "normal",
             color:
-              drawerNumber === KOKSBANKEN_DRAWER
+              drawerNumber === KOKSBANKEN_DRAWER ||
+              drawerNumber === "Köksbänken"
                 ? "primary.main"
                 : "text.primary",
           }}
@@ -65,7 +111,7 @@ export const DroppableDrawer: React.FC<DroppableDrawerProps> = ({
           {getDrawerTitle(drawerNumber)}:
         </Typography>
 
-        <Stack spacing={0.5}>
+        <Stack spacing={{ xs: 0.3, sm: 0.5 }}>
           {items.map((item, idx) => (
             <DraggableItemCard
               key={item.id}
@@ -86,16 +132,25 @@ export const DroppableDrawer: React.FC<DroppableDrawerProps> = ({
           {items.length === 0 && (
             <Box
               sx={{
-                py: 2,
+                py: { xs: 0.5, sm: 1 },
                 textAlign: "center",
                 color: "text.secondary",
-                border: "2px dashed",
-                borderColor: "primary.main",
-                borderRadius: 1,
+                background:
+                  "linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02))",
+                border: isOver ? "2px dashed" : "1px solid",
+                borderColor: isOver
+                  ? "primary.main"
+                  : "rgba(255, 255, 255, 0.1)",
+                borderRadius: 2,
                 opacity: 0.6,
+                boxShadow:
+                  "inset 1px 1px 3px rgba(0, 0, 0, 0.1), inset -1px -1px 3px rgba(255, 255, 255, 0.05)",
               }}
             >
-              <Typography variant="caption">
+              <Typography
+                variant="caption"
+                sx={{ fontSize: { xs: "0.65rem", sm: "0.75rem" } }}
+              >
                 {isOver ? "Släpp här för att flytta" : "— tomt —"}
               </Typography>
             </Box>
