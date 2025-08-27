@@ -22,6 +22,7 @@ import {
   DialogActions,
   Tabs,
   Tab,
+  Badge,
 } from "@mui/material";
 
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
@@ -456,16 +457,52 @@ export default function App() {
           onChange={(_, newValue) => setActiveTab(newValue)}
           sx={{
             bgcolor: "rgba(255, 255, 255, 0.05)",
+            overflow: "visible !important",
             "& .MuiTab-root": {
               color: "rgba(255, 255, 255, 0.7)",
               "&.Mui-selected": {
                 color: "#ffffff",
               },
             },
+            "& .MuiTabs-flexContainer": {
+              overflow: "visible !important",
+            },
+            "& .MuiTabs-scroller": {
+              overflow: "visible !important",
+            },
+            "& .MuiTabs-indicator": {
+              overflow: "visible !important",
+            },
           }}
         >
           <Tab label="Lådor" value="inventory" />
-          <Tab label="Inköpslista" value="shopping" />
+          <Tab
+            label={
+              <Badge
+                badgeContent={
+                  activeTab === "shopping"
+                    ? 0
+                    : shoppingList.filter((item) => !item.completed).length
+                }
+                color="error"
+                sx={{
+                  "& .MuiBadge-badge": {
+                    top: -4,
+                    right: -6,
+                    fontSize: "0.65rem",
+                    minWidth: "16px",
+                    height: "16px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    zIndex: 9999,
+                  },
+                }}
+              >
+                <span>Inköpslista</span>
+              </Badge>
+            }
+            value="shopping"
+          />
         </Tabs>
       </AppBar>
 
